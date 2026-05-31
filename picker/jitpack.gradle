@@ -1,0 +1,76 @@
+/*
+ * JitPack 发布脚本（Groovy）。
+ *
+ * 用 Groovy 而非 Kotlin DSL 是因为：applied script 没有 AGP 的编译类路径，
+ * Kotlin 静态类型解析会失败（如 LibraryExtension 找不到）；Groovy 走运行时
+ * 动态分发，android {} / publishing {} 这些 DSL 直接可用。
+ *
+ * 启用方式（在 build.gradle.kts 里）：
+ *   apply(from = "jitpack.gradle")
+ *
+ * 本地验证：
+ *   ./gradlew :app:picker:publishToMavenLocal
+ *
+ * JitPack 服务器命令（在根目录 jitpack.yml 里配）：
+ *   ./gradlew :app:picker:publishToMavenLocal -PVERSION_NAME=$VERSION
+ *
+ * 使用方坐标（多模块仓库注意点号）：
+ *   com.github.gegeName.util:picker:<TAG>
+ */
+
+apply plugin: 'maven-publish'
+
+ext {
+    publishGroupId    = 'com.github.gegeName'
+    publishArtifactId = 'picker'
+    publishVersion    = project.findProperty('VERSION_NAME') ?: '0.1.0-LOCAL'
+
+    publishUrl        = 'https://github.com/gegeName/picker'
+    publishDeveloperId   = 'gegeName'
+    publishDeveloperName = 'gegeName'
+}
+
+android {
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+}
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+                groupId    = publishGroupId
+                artifactId = publishArtifactId
+                version    = publishVersion
+
+                pom {
+                    name        = publishArtifactId
+                    description = '媒体选择器：图片/视频/音频/其它文件，支持系统 Photo Picker、相机入口、缩略图与预览扩展、压缩与上传扩展点'
+                    url         = publishUrl
+
+                    licenses {
+                        license {
+                            name         = 'The Apache Software License, Version 2.0'
+                            url          = 'https://www.apache.org/licenses/LICENSE-2.0.txt'
+                            distribution = 'repo'
+                        }
+                    }
+                    developers {
+                        developer {
+                            id    = publishDeveloperId
+                            name  = publishDeveloperName
+                        }
+                    }
+                    scm {
+                        url = publishUrl
+                    }
+                }
+            }
+        }
+    }
+}

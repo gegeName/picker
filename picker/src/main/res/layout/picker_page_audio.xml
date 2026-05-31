@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1A1A1A">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingHorizontal="32dp">
+
+        <ImageView
+            android:id="@+id/page_audio_cover"
+            android:layout_width="220dp"
+            android:layout_height="220dp"
+            android:background="#555555"
+            android:scaleType="centerCrop" />
+
+        <TextView
+            android:id="@+id/page_audio_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/page_audio_pos"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="00:00"
+                android:textColor="#BBBBBB"
+                android:textSize="12sp" />
+
+            <SeekBar
+                android:id="@+id/page_audio_seek"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/page_audio_dur"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:text="00:00"
+                android:textColor="#BBBBBB"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/page_audio_play"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/picker_bg_preview_play_button"
+            android:elevation="6dp"
+            android:padding="20dp"
+            android:src="@drawable/picker_ic_play" />
+    </LinearLayout>
+</FrameLayout>

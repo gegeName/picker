@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="8dp"
+    android:layout_marginTop="4dp"
+    android:layout_marginEnd="8dp"
+    android:layout_marginBottom="4dp"
+    android:background="@drawable/picker_bg_list_item"
+    android:gravity="center_vertical"
+    android:minHeight="88dp"
+    android:orientation="horizontal"
+    android:padding="8dp">
+
+    <FrameLayout
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:background="@drawable/picker_bg_thumb_frame"
+        android:clipToOutline="true">
+
+        <com.chat.picker.ui.RoundedImageView
+            android:id="@+id/item_thumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/picker_bg_thumb_frame"
+            android:scaleType="centerCrop" />
+
+        <TextView
+            android:id="@+id/item_duration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/picker_bg_media_badge"
+            android:paddingHorizontal="3dp"
+            android:text="00:00"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/item_type"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:background="@drawable/picker_bg_media_badge"
+            android:paddingHorizontal="3dp"
+            android:text="FILE"
+            android:textColor="#FFFFFF"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/item_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:textColor="#1F2933"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/item_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:textColor="#7B8794"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/item_check"
+        android:layout_width="26dp"
+        android:layout_height="26dp"
+        android:background="@drawable/picker_check_unselected"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+</LinearLayout>

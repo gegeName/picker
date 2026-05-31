@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/preview_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/preview_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#222222"
+        android:gravity="center_vertical"
+        android:minHeight="48dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/preview_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:padding="6dp"
+            android:text="@string/picker_back"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/preview_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/preview_check"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="@drawable/picker_check_unselected"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/preview_pager"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:id="@+id/preview_bottom_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#222222"
+        android:gravity="center_vertical"
+        android:minHeight="52dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/preview_confirm"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:background="@drawable/picker_bg_confirm_button"
+            android:elevation="2dp"
+            android:gravity="center"
+            android:includeFontPadding="false"
+            android:minWidth="96dp"
+            android:paddingHorizontal="18dp"
+            android:text="@string/picker_done_zero"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

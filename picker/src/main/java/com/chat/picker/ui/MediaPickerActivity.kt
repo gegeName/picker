@@ -1,0 +1,510 @@
+package com.chat.picker.ui
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.ComponentCallbacks2
+import android.content.Intent
+import android.os.Bundle
+import android.view.View
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.chat.picker.R
+import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.SelectionConfig
+import com.chat.picker.camera.CameraHelper
+import com.chat.picker.compress.CompressCallback
+import com.chat.picker.compress.IImageCompressor
+import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.data.MediaRepository
+import com.chat.picker.loader.ImageLoader
+import com.chat.picker.model.MediaEntity
+import com.chat.picker.model.MediaType
+import com.chat.picker.util.EdgeToEdge
+import com.chat.picker.util.PickerLog
+import java.io.File
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+
+class MediaPickerActivity : AppCompatActivity() {
+
+    private lateinit var config: SelectionConfig
+    private lateinit var recycler: RecyclerView
+    private lateinit var emptyView: View
+    private lateinit var btnToggle: TextView
+    private lateinit var btnConfirm: TextView
+    private lateinit var btnPreview: TextView
+    private lateinit var partialBar: View
+    private var loadingDialog: LoadingDialog? = null
+
+    private var isGrid: Boolean = true
+    private var adapter: MediaListAdapter? = null
+
+    private val pageSize: Int = MediaSelector.PAGE_SIZE
+    private var currentOffset: Int = 0
+    private var hasMore: Boolean = true
+    private var isLoadingPage: Boolean = false
+    private var lastTriggerAt: Long = 0L
+    private val triggerCooldownMs = 200L
+    private val loadedKeys = HashSet<Long>()
+    private val prefetchThreshold = 10
+
+    private val effectiveMaxCount: Int
+        get() = if (config.enableMultiSelect) config.maxCount else 1
+
+    private fun keyOf(e: MediaEntity): Long =
+        (e.id shl 4) or (e.mediaType.ordinal.toLong() and 0xF)
+
+    private fun shouldShowCamera(): Boolean =
+        config.showCameraEntry && isGrid &&
+            config.filter.type != MediaType.AUDIO
+
+    private fun cameraOffset(): Int = if (shouldShowCamera()) 1 else 0
+
+    private fun buildDisplayList(data: List<MediaEntity>): List<MediaEntity> {
+        if (!shouldShowCamera()) return data.toList()
+        return ArrayList<MediaEntity>(data.size + 1).apply {
+            add(MediaListAdapter.CAMERA_ENTRY)
+            addAll(data)
+        }
+    }
+
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        if (PermissionHelper.anyUsable(this, config.filter.type)) {
+            MediaSelector.invalidateCache()
+            loadData()
+            updatePartialBarVisibility()
+        } else {
+            emptyView.visibility = View.VISIBLE
+            (emptyView as TextView).text = getString(R.string.picker_no_media_permission)
+            dismissLoading()
+        }
+    }
+
+    private var pendingCamera: CameraHelper.Pending? = null
+    private val cameraLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        val p = pendingCamera ?: return@registerForActivityResult
+        pendingCamera = null
+        val file = File(p.filePath)
+        val exists = file.exists()
+        val len = if (exists) file.length() else 0L
+        PickerLog.d(
+            "in-picker TakePicture success=$success exists=$exists size=$len path=${p.filePath}"
+        )
+        val ok = success && exists && len > 0
+        if (ok) {
+            p.onSuccess()
+            val entity = CameraHelper.makeEntity(p.filePath, p.uri)
+            insertCapturedPhoto(entity)
+            MediaSelector.invalidateCache()
+        } else {
+            p.onFail()
+        }
+    }
+
+    private val cameraPermLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) doLaunchCamera()
+        else Toast.makeText(
+            this, getString(R.string.picker_camera_permission_required), Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun launchCamera() {
+        if (CameraHelper.hasCameraPermission(this)) {
+            doLaunchCamera()
+        } else {
+            cameraPermLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun doLaunchCamera() {
+        val p = CameraHelper.prepare(this)
+        pendingCamera = p
+        cameraLauncher.launch(p.uri)
+    }
+
+    private fun insertCapturedPhoto(entity: MediaEntity) {
+        PickerLog.d(
+            "insertCapturedPhoto id=${entity.id} uri=${entity.uri} path=${entity.filePath} " +
+                "all.size(before)=${Selection.all.size} adapter.itemCount=${adapter?.itemCount}"
+        )
+        if (!loadedKeys.add(keyOf(entity))) {
+            PickerLog.w("key already loaded, skip")
+            return
+        }
+        Selection.all.add(0, entity)
+        val result = Selection.toggle(entity)
+        if (!result.accepted) {
+            Toast.makeText(
+                this, getString(R.string.picker_over_limit, effectiveMaxCount),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        adapter?.submitList(buildDisplayList(Selection.all))
+        updateConfirmButton()
+    }
+
+    private val previewLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == MediaPreviewActivity.RESULT_CONFIRMED) {
+            finishWithResult()
+        } else {
+            adapter?.notifySelectionChangedAll()
+            updateConfirmButton()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val cfg = MediaSelector.pendingConfig
+        if (cfg == null) {
+            finish(); return
+        }
+        config = cfg
+        isGrid = config.startInGrid
+
+        setContentView(R.layout.picker_activity_list)
+        EdgeToEdge.apply(
+            activity = this,
+            root = findViewById(R.id.picker_root),
+            topBar = findViewById(R.id.picker_top_bar),
+            bottomBar = findViewById(R.id.picker_bottom_bar),
+        )
+        recycler = findViewById(R.id.picker_recycler)
+        emptyView = findViewById(R.id.picker_empty)
+        partialBar = findViewById(R.id.picker_partial_bar)
+        btnToggle = findViewById(R.id.picker_btn_toggle)
+        btnConfirm = findViewById(R.id.picker_confirm)
+        btnPreview = findViewById(R.id.picker_preview)
+
+        Selection.clear()
+        Selection.max = effectiveMaxCount
+        if (config.preSelected.isNotEmpty()) {
+            Selection.preSelect(config.preSelected)
+        }
+
+        findViewById<TextView>(R.id.picker_btn_cancel).setOnClickListener {
+            setResult(Activity.RESULT_CANCELED); finish()
+        }
+        btnToggle.setOnClickListener { toggleLayout() }
+        btnConfirm.setOnClickListener { finishWithResult() }
+        findViewById<TextView>(R.id.picker_partial_manage).setOnClickListener {
+            permissionLauncher.launch(PermissionHelper.requiredPermissions(config.filter.type))
+        }
+        btnPreview.setOnClickListener {
+            if (Selection.selected.isEmpty()) return@setOnClickListener
+            openPreview(Selection.selected.toList(), 0, false)
+        }
+
+        setupRecycler()
+        updateConfirmButton()
+        requestPermissionsAndLoad()
+    }
+
+    private fun setupRecycler() {
+        adapter = MediaListAdapter(
+            isGrid = isGrid,
+            onItemClick = { position, _ ->
+                val realIndex = position - cameraOffset()
+                if (realIndex in Selection.all.indices) {
+                    openPreview(Selection.all, realIndex, true)
+                }
+            },
+            onCheckClick = { _, item -> onCheckToggle(item) },
+            onCameraClick = { launchCamera() },
+        )
+        recycler.layoutManager = if (isGrid)
+            GridLayoutManager(this, config.gridSpanCount)
+        else LinearLayoutManager(this)
+        recycler.adapter = adapter
+        recycler.itemAnimator = null
+        adapter?.submitList(buildDisplayList(Selection.all))
+        btnToggle.text = getString(
+            if (isGrid) R.string.picker_toggle_list
+            else R.string.picker_toggle_grid
+        )
+        attachPrefetchListener()
+    }
+
+    private fun attachPrefetchListener() {
+        recycler.clearOnScrollListeners()
+        recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                if (dy <= 0) return
+                if (isLoadingPage || !hasMore) return
+                val now = android.os.SystemClock.uptimeMillis()
+                if (now - lastTriggerAt < triggerCooldownMs) return
+
+                val lm = rv.layoutManager ?: return
+                val total = lm.itemCount
+                if (total <= 0) return
+                val lastVisible = when (lm) {
+                    is GridLayoutManager -> lm.findLastVisibleItemPosition()
+                    is LinearLayoutManager -> lm.findLastVisibleItemPosition()
+                    else -> return
+                }
+                if (lastVisible < 0) return
+                if (lastVisible >= total - prefetchThreshold) {
+                    lastTriggerAt = now
+                    loadNextPage()
+                }
+            }
+        })
+    }
+
+    private fun toggleLayout() {
+        isGrid = !isGrid
+        setupRecycler()
+    }
+
+    private fun onCheckToggle(item: MediaEntity) {
+        val result = if (effectiveMaxCount == 1) Selection.selectSingle(item) else Selection.toggle(item)
+        if (!result.accepted) {
+            Toast.makeText(
+                this, getString(R.string.picker_max_select, effectiveMaxCount), Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+        adapter?.notifySelectionChanged(result.affected)
+        updateConfirmButton()
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun updateConfirmButton() {
+        btnConfirm.text = getString(R.string.picker_done_count, Selection.selected.size, effectiveMaxCount)
+    }
+
+    private fun requestPermissionsAndLoad() {
+        val perms = PermissionHelper.requiredPermissions(config.filter.type)
+        if (PermissionHelper.anyUsable(this, config.filter.type)) {
+            loadData()
+            updatePartialBarVisibility()
+        } else {
+            permissionLauncher.launch(perms)
+        }
+    }
+
+    private fun updatePartialBarVisibility() {
+        partialBar.visibility =
+            if (PermissionHelper.isPartialAccess(this, config.filter.type)) View.VISIBLE
+            else View.GONE
+    }
+
+    private fun loadData() {
+        emptyView.visibility = View.GONE
+        currentOffset = 0
+        hasMore = true
+        isLoadingPage = false
+        lastTriggerAt = 0L
+        loadedKeys.clear()
+        Selection.all.clear()
+        seedPreSelectedAtTop()
+        adapter?.submitList(buildDisplayList(Selection.all))
+
+        val isCanonical = config.filter.mimeTypes.isEmpty() && config.filter.extraSelection == null
+        val cached = MediaSelector.cached(config.filter.type)
+        if (cached != null && isCanonical) {
+            appendPage(cached, fromCache = true)
+            return
+        }
+
+        showLoading(getString(R.string.picker_loading_files), firstLoad = true)
+        loadPageInternal(isCanonical, isFirstPage = true)
+    }
+
+    private fun seedPreSelectedAtTop() {
+        if (config.preSelected.isEmpty()) return
+        config.preSelected.forEach { item ->
+            if (loadedKeys.add(keyOf(item))) {
+                Selection.all.add(item)
+            }
+        }
+    }
+
+    private fun loadNextPage() {
+        if (isLoadingPage || !hasMore) return
+        val isCanonical = config.filter.mimeTypes.isEmpty() && config.filter.extraSelection == null
+        loadPageInternal(isCanonical, isFirstPage = false)
+    }
+
+    private fun loadPageInternal(isCanonical: Boolean, isFirstPage: Boolean) {
+        isLoadingPage = true
+        val offset = currentOffset
+        MediaRepository.queryAsync(
+            applicationContext, config.filter,
+            offset = offset, limit = pageSize,
+        ) { list ->
+            runOnUiThread {
+                if (isFirstPage && isCanonical && list.isNotEmpty()) {
+                    MediaSelector.putCache(config.filter.type, list)
+                }
+                appendPage(list, fromCache = false)
+            }
+        }
+    }
+
+    private fun appendPage(page: List<MediaEntity>, fromCache: Boolean) {
+        dismissLoading()
+        val newOnes = page.filter { loadedKeys.add(keyOf(it)) }
+        if (newOnes.isNotEmpty()) {
+            Selection.all.addAll(newOnes)
+            adapter?.submitList(buildDisplayList(Selection.all))
+        }
+        currentOffset += page.size
+        hasMore = when {
+            page.size < pageSize -> false
+            fromCache && page.size < pageSize -> false
+            else -> true
+        }
+        isLoadingPage = false
+
+        emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
+        updateConfirmButton()
+    }
+
+    private fun showLoading(text: String, firstLoad: Boolean = false) {
+        if (isFinishing || isDestroyed) return
+        if (firstLoad && !config.showFirstLoading) return
+        val dlg = loadingDialog ?: LoadingDialog(this).also { loadingDialog = it }
+        dlg.setText(text)
+        if (!dlg.isShowing) dlg.show()
+    }
+
+    private fun dismissLoading() {
+        loadingDialog?.takeIf { it.isShowing }?.dismiss()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (isFinishing) {
+            Selection.clear()
+            MediaSelector.clearActiveEngine()
+            MediaSelector.clearActiveCompressors()
+            ImageLoader.clear()
+        }
+        compressPool?.shutdownNow()
+        compressPool = null
+        dismissLoading()
+        loadingDialog = null
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_MODERATE) {
+            ImageLoader.clear()
+        }
+    }
+
+    private fun openPreview(source: List<MediaEntity>, index: Int, fromList: Boolean) {
+        val previewId = PreviewBridge.put(this, source)
+        val intent = Intent(this, MediaPreviewActivity::class.java).apply {
+            putExtra(PreviewBridge.EXTRA_PREVIEW_ID, previewId)
+            putExtra(MediaPreviewActivity.EXTRA_INDEX, index)
+            putExtra(MediaPreviewActivity.EXTRA_FROM_LIST, fromList)
+            putExtra(MediaPreviewActivity.EXTRA_MAX_COUNT, effectiveMaxCount)
+        }
+        previewLauncher.launch(intent)
+    }
+
+    private var compressPool: ExecutorService? = null
+
+    private fun finishWithResult() {
+        val list = Selection.selected.toList()
+        val imageC = MediaSelector.imageCompressor()
+        val videoC = MediaSelector.videoCompressor()
+
+        // 判断有哪些项真的需要走压缩：按类型分别匹配 + 各自 needsCompress
+        val needCompress = list.any { item ->
+            (item.isImage && imageC != null && imageC.needsCompress(item)) ||
+                (item.isVideo && videoC != null && videoC.needsCompress(item))
+        }
+        if (!needCompress) {
+            deliverResult(list); return
+        }
+        runCompress(list, imageC, videoC)
+    }
+
+    private fun runCompress(
+        list: List<MediaEntity>,
+        imageC: IImageCompressor?,
+        videoC: IVideoCompressor?,
+    ) {
+        val total = list.size
+        val results = arrayOfNulls<MediaEntity>(total)
+        val done = AtomicInteger()
+        val parallel = (Runtime.getRuntime().availableProcessors() / 2)
+            .coerceIn(1, 4).coerceAtMost(total)
+        val pool = Executors.newFixedThreadPool(parallel)
+            .also { compressPool = it }
+
+        val imgCount = list.count { it.isImage && imageC != null && imageC.needsCompress(it) }
+        val vidCount = list.count { it.isVideo && videoC != null && videoC.needsCompress(it) }
+        showLoading(buildProgressText(0, total, imgCount, vidCount))
+
+        fun onItemDone(index: Int, result: MediaEntity) {
+            results[index] = result
+            val c = done.incrementAndGet()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                showLoading(buildProgressText(c, total, imgCount, vidCount))
+                if (c == total) {
+                    pool.shutdown()
+                    compressPool = null
+                    deliverResult(results.filterNotNull())
+                }
+            }
+        }
+
+        list.forEachIndexed { i, item ->
+            val callback = CompressCallback(item) { result ->
+                onItemDone(i, result)
+            }
+            pool.execute {
+                try {
+                    when {
+                        item.isImage && imageC != null && imageC.needsCompress(item) ->
+                            imageC.compress(applicationContext, item, callback)
+                        item.isVideo && videoC != null && videoC.needsCompress(item) ->
+                            videoC.compress(applicationContext, item, callback)
+                        else -> callback.onSuccess(item)
+                    }
+                } catch (e: Throwable) {
+                    callback.onError(e)
+                }
+            }
+        }
+    }
+
+    private fun buildProgressText(done: Int, total: Int, img: Int, vid: Int): String =
+        buildString {
+            append(getString(R.string.picker_compress_progress, done, total))
+            if (img > 0 || vid > 0) {
+                append("\n")
+                if (img > 0) append(getString(R.string.picker_compress_image_count, img))
+                if (img > 0 && vid > 0) append("  ")
+                if (vid > 0) append(getString(R.string.picker_compress_video_count, vid))
+            }
+        }
+
+    private fun deliverResult(list: List<MediaEntity>) {
+        dismissLoading()
+        val intent = Intent().apply {
+            putParcelableArrayListExtra(MediaSelector.EXTRA_RESULT, ArrayList(list))
+        }
+        setResult(Activity.RESULT_OK, intent)
+        finish()
+    }
+}
