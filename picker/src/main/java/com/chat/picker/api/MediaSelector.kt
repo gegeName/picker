@@ -53,7 +53,6 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun videoCompressor(c: IVideoCompressor) = apply { MediaSelectorInternal.activeVideoCompressor = c }
 
     /** 启用系统 Photo Picker（API 33+，零权限）。AUDIO 类型会回退到本框架 */
-    /** 使用系统 Photo Picker（图片/视频，API 33+ 零权限）；AUDIO 会回退到内部 picker。 */
     fun useSystemPhotoPicker(enable: Boolean) = apply { cfg.useSystemPhotoPicker = enable }
 
     /** 使用系统 SAF 文件选择器（任意文件，Google Play 合规，不申请 MANAGE_EXTERNAL_STORAGE）。 */
@@ -121,7 +120,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             }
         }
 
-        /** 全局设置图片加载引擎；传 null 恢复内置默认 */
+
         /**
          * Google Play 友好的任意文件选择入口，基于系统 SAF，不申请 MANAGE_EXTERNAL_STORAGE。
          * 适合 PDF/ZIP/DOC 等非媒体文件；需要自定义媒体网格时继续使用 [with].
@@ -142,6 +141,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             )
         }
 
+        /** 全局设置图片加载引擎；传 null 恢复内置默认 */
         fun setImageEngine(engine: IImageEngine?) {
             MediaSelectorInternal.globalEngine = engine
         }
@@ -163,7 +163,6 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * 后台预查询：可在权限已就绪后调用，命中后列表页直接展示。
-         * 调用前需具备相应类型读取权限，否则该类型直接跳过不入缓存。
          */
         fun preload(context: Context, vararg types: MediaType) =
             MediaSelectorInternal.preload(context, types, PAGE_SIZE)
@@ -171,6 +170,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         /** 仅在缓存非空时视为命中 */
         fun cached(type: MediaType): List<MediaEntity>? = MediaSelectorInternal.cached(type)
 
+        /** 调用前需具备相应类型读取权限，否则该类型直接跳过不入缓存。 */
         fun invalidateCache() = MediaSelectorInternal.invalidateCache()
 
 
