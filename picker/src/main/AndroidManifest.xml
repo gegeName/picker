@@ -25,7 +25,7 @@
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 
         <provider
-            android:name="androidx.core.content.FileProvider"
+            android:name=".api.PickerProvider"
             android:authorities="${applicationId}.chat.picker.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">

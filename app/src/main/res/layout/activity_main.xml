@@ -1,19 +1,118 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:background="#FFFFFF">
 
-    <TextView
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:orientation="vertical"
+        android:padding="16dp">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PictureSelector Demo"
+            android:textColor="#222"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/demo_result"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="#F5F5F5"
+            android:minHeight="120dp"
+            android:padding="8dp"
+            android:text="结果回调显示在这里"
+            android:textColor="#555"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/demo_preview"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_marginTop="8dp"
+            android:adjustViewBounds="true"
+            android:background="#EEEEEE"
+            android:scaleType="centerInside"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btn_pick_image"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="选图片（最多 9 张，网格）" />
+
+        <Button
+            android:id="@+id/btn_pick_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选视频（最多 3 个，网格）" />
+
+        <Button
+            android:id="@+id/btn_pick_audio"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选音乐（列表样式）" />
+
+        <Button
+            android:id="@+id/btn_pick_mixed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="混合（自定义 mimeType: png+mp4）" />
+
+        <Button
+            android:id="@+id/btn_pick_all"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="全部类型" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="拍照"
+            android:textColor="#222"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_take_photo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="独立拍照（不进 picker，直接返回路径）" />
+
+        <Button
+            android:id="@+id/btn_pick_with_camera"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选图 + 列表首位带相机入口" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="预选（复现上次选中）"
+            android:textColor="#222"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/demo_last_picked_hint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="上次选中: 0 项（先选一次图片）"
+            android:textColor="#888"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btn_pick_with_pre"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="再次打开（带上次选中复现）" />
+    </LinearLayout>
+</ScrollView>
