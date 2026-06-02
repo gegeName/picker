@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.MediaController
 import android.widget.ProgressBar
 import android.widget.SeekBar
@@ -324,7 +325,7 @@ internal class MediaPreviewAdapter
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         )
-        setBackgroundColor(Color.parseColor("#1A1A1A"))
+        setBackgroundColor(Color.TRANSPARENT)
     }) {
         private val container: FrameLayout = itemView as FrameLayout
         private var providerView: View? = null
@@ -344,27 +345,70 @@ internal class MediaPreviewAdapter
                 )
                 provider.bindView(v, item)
             } else {
-                val tv = TextView(container.context).apply {
+                val box = LinearLayout(container.context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    gravity = Gravity.CENTER
+                    setPadding(48, 48, 48, 48)
+                }
+                val icon = ImageView(container.context).apply {
+                    setBackgroundColor(Color.parseColor("#555555"))
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                    setPadding(36, 36, 36, 36)
+                    setImageResource(R.drawable.picker_ic_unknown)
+                }
+                val title = TextView(container.context).apply {
                     gravity = Gravity.CENTER
                     setTextColor(Color.WHITE)
-                    textSize = 14f
-                    setPadding(48, 48, 48, 48)
+                    textSize = 15f
+                    maxLines = 2
+                    text = item.displayName
+                }
+                val meta = TextView(container.context).apply {
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.parseColor("#BBBBBB"))
+                    textSize = 12f
                     text = buildString {
-                        append(item.displayName).append('\n')
-                        append(item.mimeType).append('\n')
+                        append(item.mimeType.ifBlank { "unknown" })
+                        append('\n')
                         append(item.sizeBytes).append(" bytes")
                     }
                 }
-                providerView = tv
+                box.addView(
+                    icon,
+                    LinearLayout.LayoutParams(120.dp, 120.dp),
+                )
+                box.addView(
+                    title,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        topMargin = 18.dp
+                    },
+                )
+                box.addView(
+                    meta,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ).apply {
+                        topMargin = 10.dp
+                    },
+                )
+                providerView = box
                 container.addView(
-                    tv,
+                    box,
                     FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        Gravity.CENTER,
                     ),
                 )
             }
         }
+
+        private val Int.dp: Int
+            get() = (this * itemView.resources.displayMetrics.density).toInt()
 
         fun release() {
             providerView?.let { v ->
