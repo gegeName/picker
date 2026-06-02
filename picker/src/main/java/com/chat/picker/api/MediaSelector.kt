@@ -62,24 +62,31 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         }
     }
 
-    /** 固定裁剪比例；x/y <= 0 时为自由比例。 */
+    /** 设置固定裁剪比例，例如 1:1、4:3；x/y <= 0 时等同于自由比例。 */
     fun cropAspectRatio(x: Int, y: Int) = apply {
         cfg.cropConfig.aspectX = x.coerceAtLeast(0)
         cfg.cropConfig.aspectY = y.coerceAtLeast(0)
     }
 
+    /** 使用自由比例裁剪，用户可拖动四个角自由调整裁剪框宽高。 */
     fun cropFreeStyle() = apply {
         cfg.cropConfig.aspectX = 0
         cfg.cropConfig.aspectY = 0
     }
 
+    /**
+     * 设置裁剪结果的输出格式和质量。
+     *
+     * JPEG 会按 [quality] 压缩；PNG 会忽略质量参数。圆形裁剪会强制输出 PNG，
+     * 以保留圆形外部的透明区域。quality 会被限制在 1..100。
+     */
     @JvmOverloads
     fun cropOutput(format: CropOutputFormat, quality: Int = 90) = apply {
         cfg.cropConfig.outputFormat = format
         cfg.cropConfig.outputQuality = quality.coerceIn(1, 100)
     }
 
-    /** 圆形裁剪会强制 1:1，并默认输出 PNG 以保留透明区域。 */
+    /** 开启圆形裁剪；内部会自动开启裁剪、强制 1:1，并默认输出 PNG。 */
     @JvmOverloads
     fun cropOval(enable: Boolean = true) = apply {
         crop(enable)
@@ -91,6 +98,12 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         }
     }
 
+    /**
+     * 设置裁剪框形状。
+     *
+     * [CropShape.RECTANGLE] 为普通矩形裁剪；[CropShape.OVAL] 为圆形裁剪，
+     * 会自动开启裁剪、强制 1:1，并默认输出 PNG。
+     */
     fun cropShape(shape: CropShape) = apply {
         cfg.cropConfig.cropShape = shape
         if (shape == CropShape.OVAL) {
@@ -101,6 +114,12 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         }
     }
 
+    /**
+     * 设置裁剪结果最大输出尺寸。
+     *
+     * 实际输出不会超过该宽高；如果裁剪区域更小，则按原裁剪区域尺寸输出。
+     * width/height 最小按 1 处理。
+     */
     fun cropMaxSize(width: Int, height: Int) = apply {
         cfg.cropConfig.maxOutputWidth = width.coerceAtLeast(1)
         cfg.cropConfig.maxOutputHeight = height.coerceAtLeast(1)
@@ -233,10 +252,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         fun preload(context: Context, vararg types: MediaType) =
             MediaSelectorInternal.preload(context, types, PAGE_SIZE)
 
-        /** 仅在缓存非空时视为命中 */
+        /** 获取已预加载或上次列表查询回写的首屏缓存；无缓存或缓存为空时返回 null。 */
         fun cached(type: MediaType): List<MediaEntity>? = MediaSelectorInternal.cached(type)
 
-        /** 调用前需具备相应类型读取权限，否则该类型直接跳过不入缓存。 */
+        /** 清空媒体列表缓存和文件扫描缓存；拍照、保存新文件或外部媒体变化后调用可强制下次重新查询。 */
         fun invalidateCache() = MediaSelectorInternal.invalidateCache()
 
 
