@@ -3,6 +3,7 @@ package com.chat.picker.api
 import android.content.Context
 import android.os.Build
 import androidx.activity.ComponentActivity
+import androidx.fragment.app.Fragment
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
@@ -19,6 +20,11 @@ import com.chat.picker.preview.IOtherPreviewProvider
  *     .type(MediaType.IMAGE)
  *     .maxCount(9)
  *     .grid(true)
+ *     .start { result -> ... }
+ *
+ * Fragment 中可直接使用：
+ *   MediaSelector.with(fragment)
+ *     .type(MediaType.IMAGE)
  *     .start { result -> ... }
  *
  * 初始化预查询：
@@ -193,6 +199,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         fun with(activity: ComponentActivity) = MediaSelector(activity)
 
+        fun with(fragment: Fragment) = MediaSelector(fragment.requireActivity())
+
         /**
          * 独立拍照入口：不进 picker UI，直接调系统相机拍一张并返回路径/uri。
          * @param listener onResult(success, filePath, uri)
@@ -203,6 +211,14 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
                 if (ok) invalidateCache()
                 listener.onResult(ok, path, uri)
             }
+        }
+
+        /**
+         * Fragment 版独立拍照入口；行为同 [takePhoto] Activity 版本。
+         */
+        @JvmStatic
+        fun takePhoto(fragment: Fragment, listener: OnPhotoTakenListener) {
+            takePhoto(fragment.requireActivity(), listener)
         }
 
 
@@ -220,6 +236,25 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         ) {
             MediaSelectorInternal.launchDocumentPicker(
                 activity = activity,
+                mimeTypes = mimeTypes,
+                allowMultiple = allowMultiple,
+                listener = listener,
+            )
+        }
+
+        /**
+         * Fragment 版任意文件选择入口；行为同 [pickFiles] Activity 版本。
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun pickFiles(
+            fragment: Fragment,
+            mimeTypes: Array<String> = arrayOf("*/*"),
+            allowMultiple: Boolean = true,
+            listener: OnPickResultListener,
+        ) {
+            pickFiles(
+                activity = fragment.requireActivity(),
                 mimeTypes = mimeTypes,
                 allowMultiple = allowMultiple,
                 listener = listener,
