@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Bundle
 import android.view.View
 import android.widget.TextView
@@ -45,6 +46,13 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private var isGrid: Boolean = true
     private var adapter: MediaListAdapter? = null
+    private var activePreviewId: String? = null
+
+    private val transitionTargetResolver = object : MediaPreviewTransitionBridge.TargetResolver {
+        override fun resolveTargetBounds(item: MediaEntity, callback: (Rect?) -> Unit) {
+            resolvePreviewTargetBounds(item, callback)
+        }
+    }
 
     private val pageSize: Int = MediaSelector.PAGE_SIZE
     private var currentOffset: Int = 0
@@ -159,6 +167,8 @@ class MediaPickerActivity : AppCompatActivity() {
     private val previewLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        MediaPreviewTransitionBridge.unregister(activePreviewId)
+        activePreviewId = null
         if (result.resultCode == MediaPreviewActivity.RESULT_CONFIRMED) {
             finishWithResult()
         } else {
@@ -222,7 +232,13 @@ class MediaPickerActivity : AppCompatActivity() {
         }
         btnPreview.setOnClickListener {
             if (Selection.selected.isEmpty()) return@setOnClickListener
-            openPreview(Selection.selected.toList(), 0, false)
+            val first = Selection.selected.first()
+            openPreview(
+                source = Selection.selected.toList(),
+                index = 0,
+                fromList = false,
+                startBounds = findThumbBoundsForItem(first),
+            )
         }
 
         setupRecycler()
@@ -236,7 +252,12 @@ class MediaPickerActivity : AppCompatActivity() {
             onItemClick = { position, _ ->
                 val realIndex = position - cameraOffset()
                 if (realIndex in Selection.all.indices) {
-                    openPreview(Selection.all, realIndex, true)
+                    openPreview(
+                        source = Selection.all,
+                        index = realIndex,
+                        fromList = true,
+                        startBounds = findThumbBoundsForAdapterPosition(position),
+                    )
                 }
             },
             onCheckClick = { _, item -> onCheckToggle(item) },
@@ -405,6 +426,8 @@ class MediaPickerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        MediaPreviewTransitionBridge.unregister(activePreviewId)
+        activePreviewId = null
         if (isFinishing) {
             Selection.clear()
             MediaSelector.clearActiveEngine()
@@ -425,16 +448,103 @@ class MediaPickerActivity : AppCompatActivity() {
         }
     }
 
-    private fun openPreview(source: List<MediaEntity>, index: Int, fromList: Boolean) {
+    private fun openPreview(
+        source: List<MediaEntity>,
+        index: Int,
+        fromList: Boolean,
+        startBounds: Rect? = null,
+    ) {
         val previewId = PreviewBridge.put(this, source)
+        activePreviewId = previewId
+        MediaPreviewTransitionBridge.register(previewId, transitionTargetResolver)
         val intent = Intent(this, MediaPreviewActivity::class.java).apply {
             putExtra(PreviewBridge.EXTRA_PREVIEW_ID, previewId)
             putExtra(MediaPreviewActivity.EXTRA_INDEX, index)
             putExtra(MediaPreviewActivity.EXTRA_FROM_LIST, fromList)
             putExtra(MediaPreviewActivity.EXTRA_MAX_COUNT, effectiveMaxCount)
+            putExtra(MediaPreviewActivity.EXTRA_START_BOUNDS, startBounds)
         }
         previewLauncher.launch(intent)
+        @Suppress("DEPRECATION")
+        overridePendingTransition(0, 0)
     }
+
+    private fun resolvePreviewTargetBounds(item: MediaEntity, callback: (Rect?) -> Unit) {
+        val adapterPosition = adapterPositionForItem(item)
+        if (adapterPosition == RecyclerView.NO_POSITION) {
+            callback(null)
+            return
+        }
+        findThumbBoundsForAdapterPosition(adapterPosition)?.let {
+            callback(it)
+            return
+        }
+
+        recycler.stopScroll()
+        val lm = recycler.layoutManager
+        if (lm is LinearLayoutManager) {
+            lm.scrollToPositionWithOffset(adapterPosition, targetScrollOffset())
+        } else {
+            recycler.scrollToPosition(adapterPosition)
+        }
+        postTargetBoundsAfterScroll(adapterPosition, attempts = 4, callback = callback)
+    }
+
+    private fun postTargetBoundsAfterScroll(
+        adapterPosition: Int,
+        attempts: Int,
+        callback: (Rect?) -> Unit,
+    ) {
+        recycler.postOnAnimation {
+            val bounds = findThumbBoundsForAdapterPosition(adapterPosition)
+            if (bounds != null || attempts <= 1) {
+                callback(bounds)
+            } else {
+                postTargetBoundsAfterScroll(adapterPosition, attempts - 1, callback)
+            }
+        }
+    }
+
+    private fun targetScrollOffset(): Int {
+        val viewport = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        if (viewport <= 0) return 0
+        return ((viewport - estimatedItemHeight()) / 2).coerceAtLeast(0)
+    }
+
+    private fun estimatedItemHeight(): Int {
+        if (isGrid) {
+            val span = config.gridSpanCount.coerceAtLeast(1)
+            val usableWidth = recycler.width - recycler.paddingLeft - recycler.paddingRight
+            if (usableWidth > 0) return usableWidth / span
+        }
+        return (96f * resources.displayMetrics.density).toInt()
+    }
+
+    private fun findThumbBoundsForItem(item: MediaEntity): Rect? {
+        val adapterPosition = adapterPositionForItem(item)
+        if (adapterPosition == RecyclerView.NO_POSITION) return null
+        return findThumbBoundsForAdapterPosition(adapterPosition)
+    }
+
+    private fun adapterPositionForItem(item: MediaEntity): Int {
+        val realIndex = Selection.all.indexOfFirst { sameMediaItem(it, item) }
+        if (realIndex < 0) return RecyclerView.NO_POSITION
+        return realIndex + cameraOffset()
+    }
+
+    private fun findThumbBoundsForAdapterPosition(adapterPosition: Int): Rect? {
+        val holder = recycler.findViewHolderForAdapterPosition(adapterPosition) ?: return null
+        val target = holder.itemView.findViewById<View>(R.id.item_thumb) ?: holder.itemView
+        if (!target.isShown || target.width <= 0 || target.height <= 0) return null
+        val rect = Rect()
+        if (!target.getGlobalVisibleRect(rect) || rect.width() <= 0 || rect.height() <= 0) {
+            return null
+        }
+        return rect
+    }
+
+    private fun sameMediaItem(a: MediaEntity, b: MediaEntity): Boolean =
+        a.id == b.id && a.mediaType == b.mediaType
 
     private var compressPool: ExecutorService? = null
 
