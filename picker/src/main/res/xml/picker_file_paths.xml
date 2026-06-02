@@ -2,5 +2,6 @@
 <paths>
     <cache-path name="picker_cache" path="picker_camera/" />
     <cache-path name="picker_crop" path="picker_crop/" />
+    <cache-path name="picker_compress" path="picker_compress/" />
     <external-cache-path name="picker_external_cache" path="picker_camera/" />
 </paths>

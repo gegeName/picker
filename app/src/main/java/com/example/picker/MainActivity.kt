@@ -73,6 +73,34 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
+        // ===== 压缩演示 =====
+
+        findViewById<Button>(R.id.btn_pick_compress_image).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .maxCount(9)
+                .grid(true)
+                .smartCompress(
+                    ignoreByKb = 100,
+                    quality = 85,
+                    minQuality = 75,
+                    maxWidth = 1080,
+                    maxHeight = 1920,
+                    minLongSide = 720,
+                )
+                .start { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_pick_crop_compress).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .crop()
+                .cropAspectRatio(1, 1)
+                .cropMaxSize(1024, 1024)
+                .smartCompress()
+                .start { render(it) }
+        }
+
         // ===== 裁剪演示 =====
 
         findViewById<Button>(R.id.btn_pick_crop_square).setOnClickListener {
@@ -147,6 +175,7 @@ class MainActivity : AppCompatActivity() {
             append("已选 ${list.size} 项：\n")
             list.forEachIndexed { i, e ->
                 append("${i + 1}. [${e.mediaType}] ${e.displayName}  ${e.mimeType}\n")
+                append("   size=${formatSize(e.sizeBytes)}  ${e.width}x${e.height}\n")
                 e.filePath?.let { append("   path=$it\n") }
             }
         }
@@ -176,5 +205,12 @@ class MainActivity : AppCompatActivity() {
         }
         preview.setImageBitmap(bmp)
         preview.visibility = ImageView.VISIBLE
+    }
+
+    private fun formatSize(bytes: Long): String {
+        if (bytes <= 0L) return "unknown"
+        val kb = bytes / 1024f
+        if (kb < 1024f) return "%.1fKB".format(kb)
+        return "%.2fMB".format(kb / 1024f)
     }
 }

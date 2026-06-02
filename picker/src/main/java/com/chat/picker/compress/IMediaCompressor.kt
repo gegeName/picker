@@ -58,11 +58,8 @@ class CompressCallback internal constructor(
  * - **同步**：`callback.onSuccess(item.copy(uri = newUri))`
  * - **异步**：
  *   ```
- *   Luban.with(ctx).load(item.uri).setOnCompressListener(object: OnCompressListener {
- *       override fun onSuccess(f: File) =
- *           callback.onSuccess(item.copy(uri = f.toUri(), sizeBytes = f.length()))
- *       override fun onError(e: Throwable) = callback.onError(e)   // 框架自动兜底原文件
- *   }).launch()
+ *   val compressed = compressImage(ctx, item.uri)
+ *   callback.onSuccess(item.copy(uri = compressed.toUri(), sizeBytes = compressed.length()))
  *   ```
  */
 interface IImageCompressor {

@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.compress.SmartImageCompressor
 import com.chat.picker.loader.DefaultImageEngine
 import com.chat.picker.loader.IImageEngine
 import com.chat.picker.model.MediaEntity
@@ -136,6 +137,34 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
     /** 单次覆盖：仅本次使用该图片压缩器 */
     fun imageCompressor(c: IImageCompressor) = apply { MediaSelectorInternal.activeImageCompressor = c }
+
+    /**
+     * 本次选择启用内置智能图片压缩。
+     *
+     * 小于 [ignoreByKb] 的图片跳过压缩；输出最长不超过 [maxWidth] x [maxHeight]，
+     * JPEG 使用 [quality] 压缩，且不会低于 [minQuality]，避免肉眼可见的明显模糊。
+     * 透明图片默认保留 PNG 透明通道。
+     */
+    @JvmOverloads
+    fun smartCompress(
+        ignoreByKb: Int = 100,
+        quality: Int = 85,
+        minQuality: Int = 75,
+        maxWidth: Int = 1080,
+        maxHeight: Int = 1920,
+        minLongSide: Int = 720,
+        preserveAlpha: Boolean = true,
+    ) = apply {
+        MediaSelectorInternal.activeImageCompressor = SmartImageCompressor(
+            ignoreByKb = ignoreByKb,
+            quality = quality,
+            minQuality = minQuality,
+            maxWidth = maxWidth,
+            maxHeight = maxHeight,
+            minLongSide = minLongSide,
+            preserveAlpha = preserveAlpha,
+        )
+    }
 
     /** 单次覆盖：仅本次使用该视频压缩器 */
     fun videoCompressor(c: IVideoCompressor) = apply { MediaSelectorInternal.activeVideoCompressor = c }
@@ -274,6 +303,35 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         /** 全局设置图片压缩器；传 null 则不压缩图片 */
         fun setImageCompressor(c: IImageCompressor?) {
             MediaSelectorInternal.globalImageCompressor = c
+        }
+
+        /**
+         * 全局启用内置智能图片压缩；后续所有 picker 调用默认都会压缩图片。
+         *
+         * 如需取消，调用 [setImageCompressor] 并传 null。
+         */
+        @JvmStatic
+        @JvmOverloads
+        fun setSmartImageCompressor(
+            ignoreByKb: Int = 100,
+            quality: Int = 85,
+            minQuality: Int = 75,
+            maxWidth: Int = 1080,
+            maxHeight: Int = 1920,
+            minLongSide: Int = 720,
+            preserveAlpha: Boolean = true,
+        ) {
+            setImageCompressor(
+                SmartImageCompressor(
+                    ignoreByKb = ignoreByKb,
+                    quality = quality,
+                    minQuality = minQuality,
+                    maxWidth = maxWidth,
+                    maxHeight = maxHeight,
+                    minLongSide = minLongSide,
+                    preserveAlpha = preserveAlpha,
+                )
+            )
         }
 
         /** 全局设置视频压缩器；传 null 则不压缩视频 */
