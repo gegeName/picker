@@ -118,13 +118,15 @@ internal class CropImageView @JvmOverloads constructor(
         if (!initialized) initImageAndCrop(bmp)
         canvas.drawBitmap(bmp, imageMatrix, bitmapPaint)
         drawMask(canvas)
-        drawGuidelines(canvas)
         if (config.isCircle) {
+            drawCircleGuidelines(canvas)
             canvas.drawOval(cropRect, borderPaint)
+            drawCircleHandles(canvas)
         } else {
+            drawGuidelines(canvas)
             canvas.drawRect(cropRect, borderPaint)
+            drawHandles(canvas)
         }
-        drawHandles(canvas)
     }
 
     override fun onDetachedFromWindow() {
@@ -246,6 +248,16 @@ internal class CropImageView @JvmOverloads constructor(
         canvas.drawLine(cropRect.left, cropRect.top + oneThirdH * 2, cropRect.right, cropRect.top + oneThirdH * 2, guidelinePaint)
     }
 
+    private fun drawCircleGuidelines(canvas: Canvas) {
+        val clipPath = Path().apply {
+            addOval(cropRect, Path.Direction.CW)
+        }
+        val saveCount = canvas.save()
+        canvas.clipPath(clipPath)
+        drawGuidelines(canvas)
+        canvas.restoreToCount(saveCount)
+    }
+
     private fun drawHandles(canvas: Canvas) {
         val len = dp(22f)
         canvas.drawLine(cropRect.left, cropRect.top, cropRect.left + len, cropRect.top, handlePaint)
@@ -258,11 +270,20 @@ internal class CropImageView @JvmOverloads constructor(
         canvas.drawLine(cropRect.right, cropRect.bottom, cropRect.right, cropRect.bottom - len, handlePaint)
     }
 
+    private fun drawCircleHandles(canvas: Canvas) {
+        val sweep = 24f
+        canvas.drawArc(cropRect, 225f - sweep / 2f, sweep, false, handlePaint)
+        canvas.drawArc(cropRect, 315f - sweep / 2f, sweep, false, handlePaint)
+        canvas.drawArc(cropRect, 45f - sweep / 2f, sweep, false, handlePaint)
+        canvas.drawArc(cropRect, 135f - sweep / 2f, sweep, false, handlePaint)
+    }
+
     private fun moveCrop(dx: Float, dy: Float) {
         val rect = RectF(cropRect)
         rect.offset(dx, dy)
-        constrainCropToImage(rect)
+        constrainCropToView(rect, allowShrink = false)
         cropRect.set(rect)
+        ensureImageCoversCrop()
     }
 
     private fun resizeCrop(dx: Float, dy: Float) {
@@ -298,7 +319,9 @@ internal class CropImageView @JvmOverloads constructor(
         rect.right = rect.right.coerceIn(rect.left + minSize, width.toFloat())
         rect.bottom = rect.bottom.coerceIn(rect.top + minSize, height.toFloat())
         constrainCropToImage(rect)
+        constrainCropToView(rect, allowShrink = true)
         cropRect.set(rect)
+        ensureImageCoversCrop()
     }
 
     private fun fixAspect(rect: RectF) {
@@ -377,6 +400,29 @@ internal class CropImageView @JvmOverloads constructor(
         }
     }
 
+    private fun constrainCropToView(rect: RectF, allowShrink: Boolean) {
+        val viewW = width.toFloat()
+        val viewH = height.toFloat()
+        if (viewW <= 0f || viewH <= 0f || rect.isEmpty) return
+
+        val scale = minOf(viewW / rect.width(), viewH / rect.height(), 1f)
+        if (allowShrink && scale < 1f) {
+            val cx = rect.centerX()
+            val cy = rect.centerY()
+            val newW = rect.width() * scale
+            val newH = rect.height() * scale
+            rect.set(cx - newW / 2f, cy - newH / 2f, cx + newW / 2f, cy + newH / 2f)
+        }
+
+        var dx = 0f
+        var dy = 0f
+        if (rect.left < 0f) dx = -rect.left
+        if (rect.right > viewW) dx = viewW - rect.right
+        if (rect.top < 0f) dy = -rect.top
+        if (rect.bottom > viewH) dy = viewH - rect.bottom
+        if (dx != 0f || dy != 0f) rect.offset(dx, dy)
+    }
+
     private fun mappedImageBounds(bmp: Bitmap): RectF {
         imageBounds.set(0f, 0f, bmp.width.toFloat(), bmp.height.toFloat())
         imageMatrix.mapRect(imageBounds)
@@ -384,6 +430,7 @@ internal class CropImageView @JvmOverloads constructor(
     }
 
     private fun hitHandle(x: Float, y: Float): Handle {
+        if (config.isCircle) return hitCircleHandle(x, y)
         val size = dp(28f)
         val nearLeft = abs(x - cropRect.left) <= size
         val nearRight = abs(x - cropRect.right) <= size
@@ -394,10 +441,21 @@ internal class CropImageView @JvmOverloads constructor(
             nearRight && nearTop -> Handle.RIGHT_TOP
             nearLeft && nearBottom -> Handle.LEFT_BOTTOM
             nearRight && nearBottom -> Handle.RIGHT_BOTTOM
-            nearLeft && y in cropRect.top..cropRect.bottom -> Handle.LEFT
-            nearRight && y in cropRect.top..cropRect.bottom -> Handle.RIGHT
-            nearTop && x in cropRect.left..cropRect.right -> Handle.TOP
-            nearBottom && x in cropRect.left..cropRect.right -> Handle.BOTTOM
+            else -> Handle.NONE
+        }
+    }
+
+    private fun hitCircleHandle(x: Float, y: Float): Handle {
+        val radius = cropRect.width() / 2f
+        val diagonal = radius * 0.70710678f
+        val cx = cropRect.centerX()
+        val cy = cropRect.centerY()
+        val touchSize = dp(34f)
+        return when {
+            hypot(x - (cx - diagonal), y - (cy - diagonal)) <= touchSize -> Handle.LEFT_TOP
+            hypot(x - (cx + diagonal), y - (cy - diagonal)) <= touchSize -> Handle.RIGHT_TOP
+            hypot(x - (cx - diagonal), y - (cy + diagonal)) <= touchSize -> Handle.LEFT_BOTTOM
+            hypot(x - (cx + diagonal), y - (cy + diagonal)) <= touchSize -> Handle.RIGHT_BOTTOM
             else -> Handle.NONE
         }
     }
