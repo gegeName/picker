@@ -172,8 +172,10 @@ class MediaPickerActivity : AppCompatActivity() {
         if (result.resultCode == MediaPreviewActivity.RESULT_CONFIRMED) {
             finishWithResult()
         } else {
-            adapter?.notifySelectionChangedAll()
-            updateConfirmButton()
+            recycler.postOnAnimation {
+                adapter?.notifySelectionChangedAll()
+                updateConfirmButton()
+            }
         }
     }
 

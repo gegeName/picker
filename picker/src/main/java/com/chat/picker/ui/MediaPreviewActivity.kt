@@ -3,6 +3,7 @@ package com.chat.picker.ui
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -39,6 +40,11 @@ class MediaPreviewActivity : AppCompatActivity() {
     private var maxCount: Int = 9
     private var closing: Boolean = false
     private var startBounds: Rect? = null
+
+    override fun setRequestedOrientation(requestedOrientation: Int) {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.O) return
+        super.setRequestedOrientation(requestedOrientation)
+    }
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
