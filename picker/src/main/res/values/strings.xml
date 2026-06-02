@@ -2,6 +2,7 @@
 <resources>
     <string name="picker_cancel">取消</string>
     <string name="picker_back">返回</string>
+    <string name="picker_done">完成</string>
     <string name="picker_title">选择文件</string>
     <string name="picker_toggle_list">列表</string>
     <string name="picker_toggle_grid">网格</string>
@@ -21,4 +22,11 @@
     <string name="picker_compress_progress">正在压缩 %1$d/%2$d</string>
     <string name="picker_compress_image_count">图片×%1$d</string>
     <string name="picker_compress_video_count">视频×%1$d</string>
+    <string name="picker_crop_title">裁剪图片</string>
+    <string name="picker_crop_rotate">旋转</string>
+    <string name="picker_crop_flip_h">水平翻转</string>
+    <string name="picker_crop_flip_v">垂直翻转</string>
+    <string name="picker_crop_reset">重置</string>
+    <string name="picker_crop_failed">裁剪失败</string>
+    <string name="picker_crop_save_failed">保存裁剪结果失败</string>
 </resources>

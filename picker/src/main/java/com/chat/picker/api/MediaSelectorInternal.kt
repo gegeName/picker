@@ -11,8 +11,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.chat.picker.camera.CameraHelper
+import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.crop.CropImageActivity
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.DefaultImageEngine
 import com.chat.picker.loader.IImageEngine
@@ -96,6 +99,106 @@ internal object MediaSelectorInternal {
 
     private fun cacheKey(type: MediaType): CacheKey =
         CacheKey(type, StorageAccess.hasAllFilesAccess())
+
+    fun launchCameraPicker(
+        activity: ComponentActivity,
+        cfg: SelectionConfig,
+        listener: OnPickResultListener,
+    ) {
+        pendingListener = listener
+        pendingConfig = cfg
+        CameraHelper.take(activity) { ok, path, uri ->
+            if (!ok || path == null || uri == null) {
+                clearRuntimeState()
+                listener.onResult(emptyList())
+                return@take
+            }
+
+            invalidateCache()
+            val item = CameraHelper.makeEntity(path, uri)
+            if (cfg.cropConfig.enabled) {
+                launchCameraCrop(activity, item, listener)
+            } else {
+                deliverCameraResult(activity, listOf(item), listener)
+            }
+        }
+    }
+
+    private fun launchCameraCrop(
+        activity: ComponentActivity,
+        item: MediaEntity,
+        listener: OnPickResultListener,
+    ) {
+        lateinit var launcher: ActivityResultLauncher<Intent>
+        launcher = activity.activityResultRegistry.register(
+            "media_camera_crop_${System.currentTimeMillis()}",
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            launcher.unregister()
+            val list = if (result.resultCode == Activity.RESULT_OK) {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra<MediaEntity>(
+                    CropImageActivity.EXTRA_RESULT
+                )?.let { listOf(it) } ?: emptyList()
+            } else {
+                emptyList()
+            }
+            deliverCameraResult(activity, list, listener)
+        }
+        launcher.launch(Intent(activity, CropImageActivity::class.java).apply {
+            putExtra(CropImageActivity.EXTRA_SOURCE, item)
+        })
+    }
+
+    private fun deliverCameraResult(
+        activity: ComponentActivity,
+        list: List<MediaEntity>,
+        listener: OnPickResultListener,
+    ) {
+        if (list.isEmpty()) {
+            clearRuntimeState()
+            listener.onResult(emptyList())
+            return
+        }
+
+        val imageC = activeImageCompressor ?: globalImageCompressor
+        val item = list.first()
+        if (!item.isImage || imageC == null || !imageC.needsCompress(item)) {
+            clearRuntimeState()
+            listener.onResult(list)
+            return
+        }
+
+        val callback = CompressCallback(item) { result ->
+            activity.runOnUiThread {
+                clearRuntimeState()
+                listener.onResult(listOf(result))
+            }
+        }
+        val pool = Executors.newSingleThreadExecutor()
+        try {
+            pool.execute {
+                try {
+                    imageC.compress(activity.applicationContext, item, callback)
+                } catch (e: Throwable) {
+                    callback.onError(e)
+                } finally {
+                    pool.shutdown()
+                }
+            }
+        } catch (e: Throwable) {
+            pool.shutdownNow()
+            callback.onError(e)
+        }
+    }
+
+    private fun clearRuntimeState() {
+        pendingListener = null
+        pendingConfig = null
+        activeEngine = null
+        activeImageCompressor = null
+        activeVideoCompressor = null
+    }
 
     fun launchSystemPicker(
         activity: ComponentActivity,

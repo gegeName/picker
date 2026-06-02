@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="picker_cache" path="picker_camera/" />
+    <cache-path name="picker_crop" path="picker_crop/" />
     <external-cache-path name="picker_external_cache" path="picker_camera/" />
 </paths>

@@ -35,7 +35,28 @@ class SelectionConfig {
      * 仅当列表项数量极大或自定义查询慢时打开。
      */
     var showFirstLoading: Boolean = false
+
+    /** 图片裁剪配置；开启后仅单张图片选择会进入裁剪页。 */
+    var cropConfig: CropConfig = CropConfig()
 }
+
+class CropConfig {
+    var enabled: Boolean = false
+    var aspectX: Int = 0
+    var aspectY: Int = 0
+    var outputFormat: CropOutputFormat = CropOutputFormat.JPEG
+    var outputQuality: Int = 90
+    var maxOutputWidth: Int = 2048
+    var maxOutputHeight: Int = 2048
+    var cropShape: CropShape = CropShape.RECTANGLE
+
+    val hasFixedAspectRatio: Boolean get() = aspectX > 0 && aspectY > 0
+    val isCircle: Boolean get() = cropShape == CropShape.OVAL
+}
+
+enum class CropOutputFormat { JPEG, PNG }
+
+enum class CropShape { RECTANGLE, OVAL }
 
 fun interface OnPickResultListener {
     fun onResult(result: List<MediaEntity>)

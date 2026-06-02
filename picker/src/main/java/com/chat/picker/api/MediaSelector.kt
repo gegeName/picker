@@ -27,6 +27,7 @@ import com.chat.picker.preview.IOtherPreviewProvider
 class MediaSelector private constructor(private val activity: ComponentActivity) {
 
     private val cfg = SelectionConfig()
+    private var startWithCamera: Boolean = false
 
     fun type(type: MediaType) = apply {
         cfg.filter = MediaFilter.Builder(type).build()
@@ -42,6 +43,68 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun grid(enable: Boolean) = apply { cfg.startInGrid = enable }
     fun spanCount(n: Int) = apply { cfg.gridSpanCount = n.coerceAtLeast(2) }
     fun multiSelect(enable: Boolean) = apply { cfg.enableMultiSelect = enable }
+
+    /** 链式拍照入口；可继续调用 crop/cropOval，最终以选择结果形式返回。 */
+    fun takePhoto() = apply {
+        startWithCamera = true
+        type(MediaType.IMAGE)
+        cfg.maxCount = 1
+        cfg.enableMultiSelect = false
+    }
+
+    /** 开启图片裁剪；裁剪模式只处理单张图片，内部会约束为单选。 */
+    @JvmOverloads
+    fun crop(enable: Boolean = true) = apply {
+        cfg.cropConfig.enabled = enable
+        if (enable) {
+            cfg.maxCount = 1
+            cfg.enableMultiSelect = false
+        }
+    }
+
+    /** 固定裁剪比例；x/y <= 0 时为自由比例。 */
+    fun cropAspectRatio(x: Int, y: Int) = apply {
+        cfg.cropConfig.aspectX = x.coerceAtLeast(0)
+        cfg.cropConfig.aspectY = y.coerceAtLeast(0)
+    }
+
+    fun cropFreeStyle() = apply {
+        cfg.cropConfig.aspectX = 0
+        cfg.cropConfig.aspectY = 0
+    }
+
+    @JvmOverloads
+    fun cropOutput(format: CropOutputFormat, quality: Int = 90) = apply {
+        cfg.cropConfig.outputFormat = format
+        cfg.cropConfig.outputQuality = quality.coerceIn(1, 100)
+    }
+
+    /** 圆形裁剪会强制 1:1，并默认输出 PNG 以保留透明区域。 */
+    @JvmOverloads
+    fun cropOval(enable: Boolean = true) = apply {
+        crop(enable)
+        cfg.cropConfig.cropShape = if (enable) CropShape.OVAL else CropShape.RECTANGLE
+        if (enable) {
+            cfg.cropConfig.aspectX = 1
+            cfg.cropConfig.aspectY = 1
+            cfg.cropConfig.outputFormat = CropOutputFormat.PNG
+        }
+    }
+
+    fun cropShape(shape: CropShape) = apply {
+        cfg.cropConfig.cropShape = shape
+        if (shape == CropShape.OVAL) {
+            crop(true)
+            cfg.cropConfig.aspectX = 1
+            cfg.cropConfig.aspectY = 1
+            cfg.cropConfig.outputFormat = CropOutputFormat.PNG
+        }
+    }
+
+    fun cropMaxSize(width: Int, height: Int) = apply {
+        cfg.cropConfig.maxOutputWidth = width.coerceAtLeast(1)
+        cfg.cropConfig.maxOutputHeight = height.coerceAtLeast(1)
+    }
 
     /** 单次覆盖：仅本次调用使用该 engine，不影响全局 */
     fun imageEngine(engine: IImageEngine) = apply { MediaSelectorInternal.activeEngine = engine }
@@ -71,7 +134,9 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun showFirstLoading(enable: Boolean) = apply { cfg.showFirstLoading = enable }
 
     fun start(listener: OnPickResultListener) {
-        if (cfg.useSystemFilePicker) {
+        if (startWithCamera) {
+            MediaSelectorInternal.launchCameraPicker(activity, cfg, listener)
+        } else if (cfg.useSystemFilePicker && !cfg.cropConfig.enabled) {
             MediaSelectorInternal.launchDocumentPicker(
                 activity = activity,
                 mimeTypes = systemFilePickerMimeTypes(),
@@ -87,7 +152,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 
     private fun shouldUseSystemPhotoPicker(): Boolean =
-        cfg.useSystemPhotoPicker &&
+        !cfg.cropConfig.enabled &&
+            cfg.useSystemPhotoPicker &&
             cfg.filter.type != MediaType.AUDIO &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 

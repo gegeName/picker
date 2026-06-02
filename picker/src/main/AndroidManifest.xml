@@ -24,6 +24,12 @@
             android:exported="false"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
 
+        <activity
+            android:name="com.chat.picker.crop.CropImageActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
         <provider
             android:name=".api.PickerProvider"
             android:authorities="${applicationId}.chat.picker.fileprovider"

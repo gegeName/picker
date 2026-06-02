@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.chat.picker.api.CropOutputFormat
 import com.chat.picker.api.PickIt
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaFilter
@@ -69,6 +70,26 @@ class MainActivity : AppCompatActivity() {
                 .type(MediaType.ALL)
                 .maxCount(9)
                 .grid(true)
+                .start { render(it) }
+        }
+
+        // ===== 裁剪演示 =====
+
+        findViewById<Button>(R.id.btn_pick_crop_square).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .crop()
+                .cropAspectRatio(1, 1)
+                .cropOutput(CropOutputFormat.JPEG, quality = 85)
+                .cropMaxSize(1024, 1024)
+                .start { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_take_crop_oval).setOnClickListener {
+            PickIt.with(this)
+                .takePhoto()
+                .cropOval()
+                .cropMaxSize(512, 512)
                 .start { render(it) }
         }
 
@@ -133,6 +154,7 @@ class MainActivity : AppCompatActivity() {
         if (list.isNotEmpty()) {
             lastPicked = list
             lastPickedHint.text = "上次选中: ${list.size} 项（点下方按钮可复现）"
+            showLocalImage(list.firstOrNull { it.isImage }?.filePath)
         }
     }
 

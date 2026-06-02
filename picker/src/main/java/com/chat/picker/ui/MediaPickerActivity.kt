@@ -20,6 +20,7 @@ import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.crop.CropImageActivity
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.ImageLoader
 import com.chat.picker.model.MediaEntity
@@ -163,6 +164,22 @@ class MediaPickerActivity : AppCompatActivity() {
         } else {
             adapter?.notifySelectionChangedAll()
             updateConfirmButton()
+        }
+    }
+
+    private val cropLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            @Suppress("DEPRECATION")
+            val item = result.data?.getParcelableExtra<MediaEntity>(
+                CropImageActivity.EXTRA_RESULT
+            )
+            if (item != null) {
+                finishAfterCrop(listOf(item))
+            } else {
+                finishAfterCrop(Selection.selected.toList())
+            }
         }
     }
 
@@ -423,6 +440,23 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun finishWithResult() {
         val list = Selection.selected.toList()
+        if (shouldCrop(list)) {
+            openCrop(list.first())
+            return
+        }
+        finishAfterCrop(list)
+    }
+
+    private fun shouldCrop(list: List<MediaEntity>): Boolean =
+        config.cropConfig.enabled && list.size == 1 && list.first().isImage
+
+    private fun openCrop(item: MediaEntity) {
+        cropLauncher.launch(Intent(this, CropImageActivity::class.java).apply {
+            putExtra(CropImageActivity.EXTRA_SOURCE, item)
+        })
+    }
+
+    private fun finishAfterCrop(list: List<MediaEntity>) {
         val imageC = MediaSelector.imageCompressor()
         val videoC = MediaSelector.videoCompressor()
 

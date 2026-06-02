@@ -75,6 +75,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:text="裁剪"
+            android:textColor="#222"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_pick_crop_square"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选图后裁剪（1:1，最大 1024）" />
+
+        <Button
+            android:id="@+id/btn_take_crop_oval"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="拍照后圆形裁剪（PNG，最大 512）" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:text="拍照"
             android:textColor="#222"
             android:textSize="16sp"
