@@ -2,6 +2,7 @@ package com.chat.picker.ui
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -31,6 +32,8 @@ class MediaPreviewActivity : AppCompatActivity() {
     }
 
     private lateinit var root: View
+    private lateinit var topBar: View
+    private lateinit var bottomBar: View
     private lateinit var pager: ViewPager2
     private lateinit var title: TextView
     private lateinit var check: TextView
@@ -51,12 +54,15 @@ class MediaPreviewActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.picker_activity_preview)
         root = findViewById(R.id.preview_root)
-        root.alpha = 0f
+        topBar = findViewById(R.id.preview_top_bar)
+        bottomBar = findViewById(R.id.preview_bottom_bar)
+        root.alpha = 1f
+        root.setBackgroundColor(Color.TRANSPARENT)
         EdgeToEdge.apply(
             activity = this,
             root = root,
-            topBar = findViewById(R.id.preview_top_bar),
-            bottomBar = findViewById(R.id.preview_bottom_bar),
+            topBar = topBar,
+            bottomBar = bottomBar,
         )
 
         previewId = intent.getStringExtra(PreviewBridge.EXTRA_PREVIEW_ID)
@@ -83,7 +89,7 @@ class MediaPreviewActivity : AppCompatActivity() {
         }
         pager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
-                pauseAllAudioExcept(position)
+                pauseAllPlaybackExcept(position)
                 refreshFor(position)
             }
         })
@@ -131,27 +137,40 @@ class MediaPreviewActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        pauseAllAudioExcept(-1)
+        pauseAllPlaybackExcept(-1)
     }
 
-    private fun pauseAllAudioExcept(currentPosition: Int) {
+    private fun pauseAllPlaybackExcept(
+        currentPosition: Int,
+        showPausedVideoPlay: Boolean = true,
+    ) {
         val rv = (pager.getChildAt(0) as? androidx.recyclerview.widget.RecyclerView) ?: return
         for (i in 0 until rv.childCount) {
             val child = rv.getChildAt(i)
-            val holder = rv.getChildViewHolder(child) as? MediaPreviewAdapter.AudioVH ?: continue
-            if (holder.bindingAdapterPosition != currentPosition) holder.pauseIfPlaying()
+            val holder = rv.getChildViewHolder(child)
+            if (holder.bindingAdapterPosition == currentPosition) continue
+            when (holder) {
+                is MediaPreviewAdapter.AudioVH -> holder.pauseIfPlaying()
+                is MediaPreviewAdapter.VideoVH -> holder.pauseIfPlaying(showPausedVideoPlay)
+            }
         }
     }
 
     private fun runEnterAnimation(bounds: Rect?) {
         if (bounds == null || bounds.isEmpty) {
+            root.setBackgroundColor(Color.BLACK)
             root.alpha = 1f
+            topBar.alpha = 1f
+            bottomBar.alpha = 1f
+            pager.alpha = 1f
             return
         }
+        topBar.alpha = 0f
+        bottomBar.alpha = 0f
+        pager.alpha = 1f
         root.doOnPreDraw {
-            applyBoundsTransform(bounds)
-            root.alpha = 0.92f
-            root.animate()
+            applyBoundsTransform(pager, bounds)
+            pager.animate()
                 .translationX(0f)
                 .translationY(0f)
                 .scaleX(1f)
@@ -159,7 +178,20 @@ class MediaPreviewActivity : AppCompatActivity() {
                 .alpha(1f)
                 .setDuration(ENTER_DURATION_MS)
                 .setInterpolator(AccelerateDecelerateInterpolator())
-                .withEndAction { clearRootTransform() }
+                .withEndAction {
+                    root.setBackgroundColor(Color.BLACK)
+                    clearTransform(pager)
+                }
+                .start()
+            topBar.animate()
+                .alpha(1f)
+                .setDuration(ENTER_DURATION_MS)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
+            bottomBar.animate()
+                .alpha(1f)
+                .setDuration(ENTER_DURATION_MS)
+                .setInterpolator(AccelerateDecelerateInterpolator())
                 .start()
         }
     }
@@ -168,7 +200,7 @@ class MediaPreviewActivity : AppCompatActivity() {
         if (closing) return
         closing = true
         pager.isUserInputEnabled = false
-        pauseAllAudioExcept(-1)
+        pauseAllPlaybackExcept(-1, showPausedVideoPlay = false)
         val item = data.getOrNull(pager.currentItem)
         if (item == null) {
             finishWithoutAnimation()
@@ -182,8 +214,15 @@ class MediaPreviewActivity : AppCompatActivity() {
     }
 
     private fun runExitAnimation(bounds: Rect?) {
+        pager.animate().cancel()
         root.animate().cancel()
-        if (bounds == null || bounds.isEmpty || root.width <= 0 || root.height <= 0) {
+        topBar.animate().cancel()
+        bottomBar.animate().cancel()
+        if (
+            bounds == null || bounds.isEmpty ||
+            root.width <= 0 || root.height <= 0 ||
+            pager.width <= 0 || pager.height <= 0
+        ) {
             root.animate()
                 .alpha(0f)
                 .scaleX(0.96f)
@@ -195,42 +234,53 @@ class MediaPreviewActivity : AppCompatActivity() {
             return
         }
 
+        root.setBackgroundColor(Color.TRANSPARENT)
         val loc = IntArray(2)
-        root.getLocationOnScreen(loc)
-        root.pivotX = 0f
-        root.pivotY = 0f
-        root.animate()
+        pager.getLocationOnScreen(loc)
+        pager.pivotX = 0f
+        pager.pivotY = 0f
+        pager.animate()
             .translationX(bounds.left - loc[0].toFloat())
             .translationY(bounds.top - loc[1].toFloat())
-            .scaleX((bounds.width().toFloat() / root.width).coerceAtLeast(0.04f))
-            .scaleY((bounds.height().toFloat() / root.height).coerceAtLeast(0.04f))
+            .scaleX((bounds.width().toFloat() / pager.width).coerceAtLeast(0.04f))
+            .scaleY((bounds.height().toFloat() / pager.height).coerceAtLeast(0.04f))
             .alpha(1f)
             .setDuration(EXIT_DURATION_MS)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .withEndAction { finishAfterExitAnimation() }
             .start()
+        topBar.animate()
+            .alpha(0f)
+            .setDuration(EXIT_DURATION_MS)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        bottomBar.animate()
+            .alpha(0f)
+            .setDuration(EXIT_DURATION_MS)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
     }
 
-    private fun applyBoundsTransform(bounds: Rect) {
-        if (root.width <= 0 || root.height <= 0) return
+    private fun applyBoundsTransform(target: View, bounds: Rect) {
+        if (target.width <= 0 || target.height <= 0) return
         val loc = IntArray(2)
-        root.getLocationOnScreen(loc)
-        root.pivotX = 0f
-        root.pivotY = 0f
-        root.translationX = bounds.left - loc[0].toFloat()
-        root.translationY = bounds.top - loc[1].toFloat()
-        root.scaleX = (bounds.width().toFloat() / root.width).coerceAtLeast(0.04f)
-        root.scaleY = (bounds.height().toFloat() / root.height).coerceAtLeast(0.04f)
+        target.getLocationOnScreen(loc)
+        target.pivotX = 0f
+        target.pivotY = 0f
+        target.translationX = bounds.left - loc[0].toFloat()
+        target.translationY = bounds.top - loc[1].toFloat()
+        target.scaleX = (bounds.width().toFloat() / target.width).coerceAtLeast(0.04f)
+        target.scaleY = (bounds.height().toFloat() / target.height).coerceAtLeast(0.04f)
     }
 
-    private fun clearRootTransform() {
-        root.pivotX = root.width / 2f
-        root.pivotY = root.height / 2f
-        root.translationX = 0f
-        root.translationY = 0f
-        root.scaleX = 1f
-        root.scaleY = 1f
-        root.alpha = 1f
+    private fun clearTransform(target: View) {
+        target.pivotX = target.width / 2f
+        target.pivotY = target.height / 2f
+        target.translationX = 0f
+        target.translationY = 0f
+        target.scaleX = 1f
+        target.scaleY = 1f
+        target.alpha = 1f
     }
 
     private fun finishWithoutAnimation() {

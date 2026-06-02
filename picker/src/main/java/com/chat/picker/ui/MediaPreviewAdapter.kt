@@ -99,7 +99,7 @@ internal class MediaPreviewAdapter
         }
     }
 
-    private inner class VideoVH(v: View) : RecyclerView.ViewHolder(v) {
+    internal inner class VideoVH(v: View) : RecyclerView.ViewHolder(v) {
         private val thumb: ImageView = v.findViewById(R.id.page_video_thumb)
         private val video: VideoView = v.findViewById(R.id.page_video)
         private val play: ImageView = v.findViewById(R.id.page_play)
@@ -110,9 +110,11 @@ internal class MediaPreviewAdapter
         fun bind(item: MediaEntity) {
             val ctx = itemView.context
             prepared = false
+            video.visibility = View.GONE
             thumb.visibility = View.VISIBLE
             play.visibility = View.VISIBLE
             loading.visibility = View.GONE
+            thumb.scaleType = ImageView.ScaleType.CENTER_CROP
             MediaSelector.imageEngine().loadThumbnail(thumb, item.uri, true)
 
             val mc = MediaController(ctx).also { controller = it }
@@ -144,18 +146,22 @@ internal class MediaPreviewAdapter
             video.setOnErrorListener { _, _, _ ->
                 prepared = false
                 loading.visibility = View.GONE
+                video.visibility = View.GONE
                 thumb.visibility = View.VISIBLE
                 play.visibility = View.VISIBLE
                 runCatching { video.stopPlayback() }
                 true
             }
             video.setOnCompletionListener {
+                video.visibility = View.GONE
                 thumb.visibility = View.VISIBLE
                 play.visibility = View.VISIBLE
             }
             play.setOnClickListener {
                 play.visibility = View.GONE
+                video.visibility = View.VISIBLE
                 if (prepared) {
+                    thumb.visibility = View.GONE
                     video.start()
                 } else {
                     loading.visibility = View.VISIBLE
@@ -170,8 +176,22 @@ internal class MediaPreviewAdapter
             video.setOnPreparedListener(null)
             video.setOnErrorListener(null)
             video.setOnCompletionListener(null)
+            video.visibility = View.GONE
             thumb.setImageDrawable(null)
             controller = null
+        }
+
+        fun pauseIfPlaying(showPlayButton: Boolean = true) {
+            controller?.hide()
+            loading.visibility = View.GONE
+            runCatching {
+                if (prepared && video.isPlaying) {
+                    video.pause()
+                }
+            }
+            video.visibility = View.GONE
+            thumb.visibility = View.VISIBLE
+            play.visibility = if (showPlayButton) View.VISIBLE else View.GONE
         }
     }
 
