@@ -37,19 +37,29 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     private val cfg = SelectionConfig()
     private var startWithCamera: Boolean = false
 
+    /** 设置选择的媒体类型，如图片、视频、音频或混合类型。 */
     fun type(type: MediaType) = apply {
         cfg.filter = MediaFilter.Builder(type).build()
     }
 
+    /** 传入完整过滤条件，可精确控制媒体类型、MIME 类型和额外查询条件。 */
     fun filter(filter: MediaFilter) = apply { cfg.filter = filter }
 
+    /** 使用 DSL 构建过滤条件。 */
     fun filter(type: MediaType, block: MediaFilter.Builder.() -> Unit = {}) = apply {
         cfg.filter = MediaFilter.Builder(type).apply(block).build()
     }
 
+    /** 最大选择数量，最小值按 1 处理。 */
     fun maxCount(n: Int) = apply { cfg.maxCount = n.coerceAtLeast(1) }
+
+    /** 是否以网格模式打开；false 时使用列表模式。 */
     fun grid(enable: Boolean) = apply { cfg.startInGrid = enable }
+
+    /** 网格列数，最小值按 2 处理。 */
     fun spanCount(n: Int) = apply { cfg.gridSpanCount = n.coerceAtLeast(2) }
+
+    /** 是否允许多选；false 时为单选模式。 */
     fun multiSelect(enable: Boolean) = apply { cfg.enableMultiSelect = enable }
 
     /** 链式拍照入口；可继续调用 crop/cropOval，最终以选择结果形式返回。 */
@@ -290,8 +300,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             allowMultiple: Boolean = true,
             listener: OnPickResultListener,
         ) {
-            MediaSelectorInternal.launchDocumentPicker(
-                activity = activity,
+            pickFiles(
+                selector = with(activity),
                 mimeTypes = mimeTypes,
                 allowMultiple = allowMultiple,
                 listener = listener,
@@ -310,11 +320,27 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             listener: OnPickResultListener,
         ) {
             pickFiles(
-                activity = fragment.requireActivity(),
+                selector = with(fragment),
                 mimeTypes = mimeTypes,
                 allowMultiple = allowMultiple,
                 listener = listener,
             )
+        }
+
+        private fun pickFiles(
+            selector: MediaSelector,
+            mimeTypes: Array<String>,
+            allowMultiple: Boolean,
+            listener: OnPickResultListener,
+        ) {
+            selector
+                .filter(MediaType.ALL) {
+                    addMimeType(*mimeTypes)
+                }
+                .useSystemFilePicker(true)
+                .multiSelect(allowMultiple)
+                .maxCount(if (allowMultiple) Int.MAX_VALUE else 1)
+                .start(listener)
         }
 
         /** 全局设置图片加载引擎；传 null 恢复内置默认 */
