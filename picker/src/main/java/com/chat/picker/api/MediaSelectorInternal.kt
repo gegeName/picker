@@ -266,8 +266,6 @@ internal object MediaSelectorInternal {
                 val list = result.data?.getParcelableArrayListExtra<MediaEntity>(MediaSelector.EXTRA_RESULT)
                     ?: arrayListOf()
                 listener.onResult(list)
-            } else {
-                listener.onResult(emptyList())
             }
             pendingListener = null
             pendingConfig = null

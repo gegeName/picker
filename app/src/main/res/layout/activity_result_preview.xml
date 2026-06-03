@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/result_preview_pager"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <VideoView
+        android:id="@+id/result_preview_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="center"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/result_preview_title"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="top"
+        android:background="#66000000"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="15sp" />
+
+    <TextView
+        android:id="@+id/result_preview_close"
+        android:layout_width="56dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|start"
+        android:gravity="center"
+        android:text="关闭"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp" />
+</FrameLayout>

@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.GridLayoutManager
@@ -218,6 +219,11 @@ class MediaPickerActivity : AppCompatActivity() {
         btnConfirm = findViewById(R.id.picker_confirm)
         btnPreview = findViewById(R.id.picker_preview)
 
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                cancelPicker()
+            }
+        })
         Selection.clear()
         Selection.max = effectiveMaxCount
         if (config.preSelected.isNotEmpty()) {
@@ -225,7 +231,7 @@ class MediaPickerActivity : AppCompatActivity() {
         }
 
         findViewById<TextView>(R.id.picker_btn_cancel).setOnClickListener {
-            setResult(Activity.RESULT_CANCELED); finish()
+            cancelPicker()
         }
         btnToggle.setOnClickListener { toggleLayout() }
         btnConfirm.setOnClickListener { finishWithResult() }
@@ -549,6 +555,11 @@ class MediaPickerActivity : AppCompatActivity() {
         a.id == b.id && a.mediaType == b.mediaType
 
     private var compressPool: ExecutorService? = null
+
+    private fun cancelPicker() {
+        setResult(RESULT_CANCELED)
+        finish()
+    }
 
     private fun finishWithResult() {
         val list = Selection.selected.toList()

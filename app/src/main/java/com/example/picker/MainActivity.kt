@@ -1,15 +1,14 @@
 package com.example.picker
 
 import android.graphics.BitmapFactory
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import com.chat.picker.api.CropOutputFormat
 import com.chat.picker.api.PickIt
 import com.chat.picker.model.MediaEntity
@@ -24,6 +23,7 @@ class MainActivity : AppCompatActivity() {
 
     /** 上次选中的结果，供 preSelected 复现使用 */
     private var lastPicked: List<MediaEntity> = emptyList()
+    private var lastPreviewIndex: Int = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
         result = findViewById(R.id.demo_result)
         preview = findViewById(R.id.demo_preview)
         lastPickedHint = findViewById(R.id.demo_last_picked_hint)
+        preview.setOnClickListener { openFullScreenPreview() }
 
         findViewById<Button>(R.id.btn_pick_image).setOnClickListener {
             PickIt.with(this)
@@ -38,7 +39,10 @@ class MainActivity : AppCompatActivity() {
                 .maxCount(9)
                 .grid(true)
                 .spanCount(4)
-                .start { render(it) }
+                .start {
+                    Log.e("Main","长度=${it.size}")
+                    render(it)
+                }
         }
         findViewById<Button>(R.id.btn_pick_video).setOnClickListener {
             PickIt.with(this)
@@ -187,7 +191,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun render(list: List<MediaEntity>) {
-        preview.visibility = ImageView.GONE
+        hidePreview()
         result.text = buildString {
             append("已选 ${list.size} 项：\n")
             list.forEachIndexed { i, e ->
@@ -200,8 +204,23 @@ class MainActivity : AppCompatActivity() {
         if (list.isNotEmpty()) {
             lastPicked = list
             lastPickedHint.text = "上次选中: ${list.size} 项（点下方按钮可复现）"
-            showLocalImage(list.firstOrNull { it.isImage }?.filePath)
+            val image = list.firstOrNull { it.isImage }
+            val video = list.firstOrNull { it.isVideo }
+            when {
+                image != null -> {
+                    lastPreviewIndex = list.indexOf(image)
+                    showLocalImage(image.filePath)
+                }
+                video != null -> {
+                    lastPreviewIndex = list.indexOf(video)
+                    showVideoEntry()
+                }
+            }
         }
+    }
+
+    private fun hidePreview() {
+        preview.visibility = ImageView.GONE
     }
 
     private fun showLocalImage(path: String?) {
@@ -220,8 +239,34 @@ class MainActivity : AppCompatActivity() {
             preview.visibility = ImageView.GONE
             return
         }
+        preview.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         preview.setImageBitmap(bmp)
         preview.visibility = ImageView.VISIBLE
+    }
+
+    private fun showVideoEntry() {
+        preview.setBackgroundColor(android.graphics.Color.BLACK)
+        preview.setImageResource(android.R.drawable.ic_media_play)
+        preview.visibility = ImageView.VISIBLE
+    }
+
+    private fun openFullScreenPreview() {
+        if (lastPicked.isEmpty()) return
+        val previewItems = lastPicked.filter { it.isImage || it.isVideo }
+        if (previewItems.isEmpty()) return
+        val selected = lastPicked.getOrNull(lastPreviewIndex)
+        val previewIndex = previewItems
+            .indexOfFirst { it.uri == selected?.uri }
+            .coerceAtLeast(0)
+        startActivity(
+            Intent(this, ResultPreviewActivity::class.java).apply {
+                putParcelableArrayListExtra(
+                    ResultPreviewActivity.EXTRA_ITEMS,
+                    ArrayList(previewItems),
+                )
+                putExtra(ResultPreviewActivity.EXTRA_INDEX, previewIndex)
+            }
+        )
     }
 
     private fun formatSize(bytes: Long): String {

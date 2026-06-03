@@ -12,6 +12,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Picker">
         <activity
+            android:name=".ResultPreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
