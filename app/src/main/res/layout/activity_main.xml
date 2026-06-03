@@ -135,10 +135,28 @@
             android:text="独立拍照（不进 picker，直接返回路径）" />
 
         <Button
+            android:id="@+id/btn_take_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="独立录视频（不进 picker，直接返回路径）" />
+
+        <Button
+            android:id="@+id/btn_take_video_compress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="录视频并压缩（返回压缩后视频）" />
+
+        <Button
             android:id="@+id/btn_pick_with_camera"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="选图 + 列表首位带相机入口" />
+
+        <Button
+            android:id="@+id/btn_pick_video_with_camera"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选视频 + 列表首位带录像入口" />
 
         <TextView
             android:layout_width="match_parent"

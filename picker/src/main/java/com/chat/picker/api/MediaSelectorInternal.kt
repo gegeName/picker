@@ -124,6 +124,26 @@ internal object MediaSelectorInternal {
         }
     }
 
+    fun launchVideoCameraPicker(
+        activity: ComponentActivity,
+        cfg: SelectionConfig,
+        listener: OnPickResultListener,
+    ) {
+        pendingListener = listener
+        pendingConfig = cfg
+        CameraHelper.record(activity) { ok, path, uri ->
+            if (!ok || path == null || uri == null) {
+                clearRuntimeState()
+                listener.onResult(emptyList())
+                return@record
+            }
+
+            invalidateCache()
+            val item = CameraHelper.makeVideoEntity(path, uri)
+            deliverCameraResult(activity, listOf(item), listener)
+        }
+    }
+
     private fun launchCameraCrop(
         activity: ComponentActivity,
         item: MediaEntity,
@@ -162,8 +182,11 @@ internal object MediaSelectorInternal {
         }
 
         val imageC = activeImageCompressor ?: globalImageCompressor
+        val videoC = activeVideoCompressor ?: globalVideoCompressor
         val item = list.first()
-        if (!item.isImage || imageC == null || !imageC.needsCompress(item)) {
+        val needsImageCompress = item.isImage && imageC != null && imageC.needsCompress(item)
+        val needsVideoCompress = item.isVideo && videoC != null && videoC.needsCompress(item)
+        if (!needsImageCompress && !needsVideoCompress) {
             clearRuntimeState()
             listener.onResult(list)
             return
@@ -182,7 +205,13 @@ internal object MediaSelectorInternal {
         try {
             pool.execute {
                 try {
-                    imageC.compress(activity.applicationContext, item, callback)
+                    when {
+                        needsImageCompress && imageC != null ->
+                            imageC.compress(activity.applicationContext, item, callback)
+                        needsVideoCompress && videoC != null ->
+                            videoC.compress(activity.applicationContext, item, callback)
+                        else -> callback.onSuccess(item)
+                    }
                 } catch (e: Throwable) {
                     callback.onError(e)
                 } finally {

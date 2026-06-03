@@ -36,6 +36,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
     private val cfg = SelectionConfig()
     private var startWithCamera: Boolean = false
+    private var startWithVideoCamera: Boolean = false
 
     /** 设置选择的媒体类型，如图片、视频、音频或混合类型。 */
     fun type(type: MediaType) = apply {
@@ -65,7 +66,17 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     /** 链式拍照入口；可继续调用 crop/cropOval，最终以选择结果形式返回。 */
     fun takePhoto() = apply {
         startWithCamera = true
+        startWithVideoCamera = false
         type(MediaType.IMAGE)
+        cfg.maxCount = 1
+        cfg.enableMultiSelect = false
+    }
+
+    /** 链式录视频入口；最终以选择结果形式返回录制的视频。 */
+    fun takeVideo() = apply {
+        startWithVideoCamera = true
+        startWithCamera = false
+        type(MediaType.VIDEO)
         cfg.maxCount = 1
         cfg.enableMultiSelect = false
     }
@@ -227,6 +238,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun start(listener: OnPickResultListener) {
         if (startWithCamera) {
             MediaSelectorInternal.launchCameraPicker(activity, cfg, listener)
+        } else if (startWithVideoCamera) {
+            MediaSelectorInternal.launchVideoCameraPicker(activity, cfg, listener)
         } else if (cfg.useSystemFilePicker && !cfg.cropConfig.enabled) {
             MediaSelectorInternal.launchDocumentPicker(
                 activity = activity,
@@ -285,6 +298,26 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         @JvmStatic
         fun takePhoto(fragment: Fragment, listener: OnPhotoTakenListener) {
             takePhoto(fragment.requireActivity(), listener)
+        }
+
+        /**
+         * 独立录视频入口：不进 picker UI，直接调系统相机录像并返回路径/uri。
+         * @param listener onResult(success, filePath, uri)
+         */
+        @JvmStatic
+        fun takeVideo(activity: ComponentActivity, listener: OnVideoRecordedListener) {
+            CameraHelper.record(activity) { ok, path, uri ->
+                if (ok) invalidateCache()
+                listener.onResult(ok, path, uri)
+            }
+        }
+
+        /**
+         * Fragment 版独立录视频入口；行为同 [takeVideo] Activity 版本。
+         */
+        @JvmStatic
+        fun takeVideo(fragment: Fragment, listener: OnVideoRecordedListener) {
+            takeVideo(fragment.requireActivity(), listener)
         }
 
 
@@ -392,6 +425,18 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             MediaSelectorInternal.globalVideoCompressor = c
         }
 
+        /**
+         * 全局启用内置 MediaCodec 视频压缩；后续所有 picker / takeVideo 调用默认都会压缩视频。
+         *
+         * - [maxLongSide]：输出视频最长边上限。
+         * - [targetBitRate]：目标视频码率。
+         * - [frameRate]：输出帧率。
+         * - [minCompressBytes]：小于该体积的视频跳过压缩。
+         * - [minDurationMs]：短视频结合 [minUsefulLongSide] 判断是否跳过压缩。
+         * - [minUsefulLongSide]：短视频低于该最长边时跳过压缩。
+         *
+         * 如需取消全局视频压缩，调用 [setVideoCompressor] 并传 null。
+         */
         @JvmStatic
         @JvmOverloads
         fun setSmartVideoCompressor(

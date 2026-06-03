@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -51,6 +52,21 @@ internal object CameraHelper {
         )
     }
 
+    fun prepareVideo(ctx: Context): Pending {
+        val app = ctx.applicationContext
+        val dir = File(app.cacheDir, DIR_NAME).apply { mkdirs() }
+        val file = File(dir, "VID_${System.currentTimeMillis()}.mp4")
+        val uri = FileProvider.getUriForFile(app, "${app.packageName}$AUTHORITY_SUFFIX", file)
+        return Pending(
+            uri = uri,
+            filePath = file.absolutePath,
+            onSuccess = {
+                Thread { registerVideoToMediaStore(app, file) }.start()
+            },
+            onFail = { runCatching { file.delete() } },
+        )
+    }
+
     /** 把拍照得到的结果构造成 MediaEntity，用于插入 picker 列表 */
     fun makeEntity(filePath: String, uri: Uri): MediaEntity {
         val now = System.currentTimeMillis()
@@ -68,6 +84,27 @@ internal object CameraHelper {
             width = 0,
             height = 0,
             mediaType = MediaType.IMAGE,
+        )
+    }
+
+    /** 把录制得到的视频构造成 MediaEntity，用于插入 picker 列表 */
+    fun makeVideoEntity(filePath: String, uri: Uri): MediaEntity {
+        val now = System.currentTimeMillis()
+        val file = File(filePath)
+        val size = if (file.exists()) file.length() else 0L
+        val meta = readVideoMeta(filePath)
+        return MediaEntity(
+            id = -now,
+            uri = uri,
+            filePath = filePath,
+            displayName = file.name,
+            mimeType = "video/mp4",
+            sizeBytes = size,
+            durationMs = meta.durationMs,
+            dateAddedSec = now / 1000,
+            width = meta.width,
+            height = meta.height,
+            mediaType = MediaType.VIDEO,
         )
     }
 
@@ -98,6 +135,28 @@ internal object CameraHelper {
         permLauncher.launch(Manifest.permission.CAMERA)
     }
 
+    /**
+     * 独立录视频入口。框架自动申请 CAMERA 权限。
+     */
+    fun record(
+        activity: ComponentActivity,
+        onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
+    ) {
+        if (hasCameraPermission(activity)) {
+            doLaunchVideo(activity, onResult); return
+        }
+        lateinit var permLauncher: ActivityResultLauncher<String>
+        permLauncher = activity.activityResultRegistry.register(
+            "picker_video_perm_${System.currentTimeMillis()}",
+            ActivityResultContracts.RequestPermission(),
+        ) { granted ->
+            permLauncher.unregister()
+            if (granted) doLaunchVideo(activity, onResult)
+            else onResult(false, null, null)
+        }
+        permLauncher.launch(Manifest.permission.CAMERA)
+    }
+
     private fun doLaunchCamera(
         activity: ComponentActivity,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
@@ -115,7 +174,36 @@ internal object CameraHelper {
             PickerLog.d(
                 "TakePicture result success=$success exists=$exists size=$len path=${pending.filePath}"
             )
-            val ok = success && exists && len > 0
+            val ok = exists && len > 0
+            if (ok) {
+                pending.onSuccess()
+                onResult(true, pending.filePath, pending.uri)
+            } else {
+                pending.onFail()
+                onResult(false, null, null)
+            }
+        }
+        launcher.launch(pending.uri)
+    }
+
+    private fun doLaunchVideo(
+        activity: ComponentActivity,
+        onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
+    ) {
+        val pending = prepareVideo(activity)
+        lateinit var launcher: ActivityResultLauncher<Uri>
+        launcher = activity.activityResultRegistry.register(
+            "picker_video_${System.currentTimeMillis()}",
+            ActivityResultContracts.CaptureVideo(),
+        ) { success ->
+            launcher.unregister()
+            val file = File(pending.filePath)
+            val exists = file.exists()
+            val len = if (exists) file.length() else 0L
+            PickerLog.d(
+                "CaptureVideo result success=$success exists=$exists size=$len path=${pending.filePath}"
+            )
+            val ok = exists && len > 0
             if (ok) {
                 pending.onSuccess()
                 onResult(true, pending.filePath, pending.uri)
@@ -166,6 +254,17 @@ internal object CameraHelper {
         }
     }
 
+    private fun registerVideoToMediaStore(ctx: Context, file: File) {
+        if (!file.exists() || file.length() <= 0) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                copyVideoToMediaStoreQ(ctx, file)
+            } else {
+                copyToMoviesLegacy(ctx, file)
+            }
+        } catch (_: Throwable) { }
+    }
+
     private fun copyToPicturesLegacy(ctx: Context, src: File) {
         val picturesDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
@@ -179,4 +278,78 @@ internal object CameraHelper {
             ctx, arrayOf(dst.absolutePath), arrayOf("image/jpeg"), null,
         )
     }
+
+    private fun copyVideoToMediaStoreQ(ctx: Context, src: File) {
+        val cr = ctx.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, src.name)
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(
+                MediaStore.Video.Media.RELATIVE_PATH,
+                Environment.DIRECTORY_MOVIES + "/" + SUBFOLDER,
+            )
+            put(MediaStore.Video.Media.IS_PENDING, 1)
+        }
+        val uri = cr.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: return
+        try {
+            cr.openOutputStream(uri)?.use { out ->
+                src.inputStream().use { it.copyTo(out) }
+            }
+            val finish = ContentValues().apply {
+                put(MediaStore.Video.Media.IS_PENDING, 0)
+            }
+            cr.update(uri, finish, null, null)
+        } catch (e: Throwable) {
+            runCatching { cr.delete(uri, null, null) }
+            throw e
+        }
+    }
+
+    private fun copyToMoviesLegacy(ctx: Context, src: File) {
+        val moviesDir = File(
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
+            SUBFOLDER,
+        ).apply { if (!exists()) mkdirs() }
+        val dst = File(moviesDir, src.name)
+        src.inputStream().use { input ->
+            dst.outputStream().use { input.copyTo(it) }
+        }
+        MediaScannerConnection.scanFile(
+            ctx, arrayOf(dst.absolutePath), arrayOf("video/mp4"), null,
+        )
+    }
+
+    private fun readVideoMeta(filePath: String): VideoMeta {
+        return runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(filePath)
+                val rotation = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION,
+                )?.toIntOrNull() ?: 0
+                val rawWidth = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH,
+                )?.toIntOrNull() ?: 0
+                val rawHeight = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT,
+                )?.toIntOrNull() ?: 0
+                val swapSize = rotation == 90 || rotation == 270
+                VideoMeta(
+                    durationMs = retriever.extractMetadata(
+                        MediaMetadataRetriever.METADATA_KEY_DURATION,
+                    )?.toLongOrNull() ?: 0L,
+                    width = if (swapSize) rawHeight else rawWidth,
+                    height = if (swapSize) rawWidth else rawHeight,
+                )
+            } finally {
+                retriever.release()
+            }
+        }.getOrDefault(VideoMeta())
+    }
+
+    private data class VideoMeta(
+        val durationMs: Long = 0L,
+        val width: Int = 0,
+        val height: Int = 0,
+    )
 }

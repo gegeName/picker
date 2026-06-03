@@ -73,3 +73,8 @@ fun interface OnPickResultListener {
 fun interface OnPhotoTakenListener {
     fun onResult(success: Boolean, filePath: String?, uri: android.net.Uri?)
 }
+
+/** 录视频结果回调；失败 / 用户取消时 success=false, filePath/uri 为 null */
+fun interface OnVideoRecordedListener {
+    fun onResult(success: Boolean, filePath: String?, uri: android.net.Uri?)
+}

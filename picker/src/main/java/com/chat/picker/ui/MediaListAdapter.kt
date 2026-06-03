@@ -20,6 +20,7 @@ internal class MediaListAdapter(
     private val onItemClick: (Int, MediaEntity) -> Unit,
     private val onCheckClick: (Int, MediaEntity) -> Unit,
     private val onCameraClick: () -> Unit = {},
+    private val cameraEntryText: String,
 ) : ListAdapter<MediaEntity, RecyclerView.ViewHolder>(DIFF) {
 
     companion object {
@@ -73,7 +74,7 @@ internal class MediaListAdapter(
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val item = getItem(position)
         when (holder) {
-            is CameraVH -> { }
+            is CameraVH -> holder.bind()
             is GridVH -> holder.bindFull(item)
             is ListVH -> holder.bindFull(item)
         }
@@ -206,11 +207,17 @@ internal class MediaListAdapter(
     }
 
     private inner class CameraVH(v: View) : RecyclerView.ViewHolder(v) {
+        private val text: TextView = v.findViewById(R.id.item_camera_text)
+
         init {
             v.setOnClickListener {
                 val pos = bindingAdapterPosition
                 if (pos != RecyclerView.NO_POSITION) onCameraClick()
             }
+        }
+
+        fun bind() {
+            text.text = cameraEntryText
         }
     }
 

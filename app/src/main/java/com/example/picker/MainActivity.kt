@@ -147,7 +147,7 @@ class MainActivity : AppCompatActivity() {
         // 1) 独立拍照：不进 picker，直接调起系统相机返回路径
         findViewById<Button>(R.id.btn_take_photo).setOnClickListener {
             PickIt.takePhoto(this) { success, filePath, uri ->
-                if (!success) {
+                if (!success || filePath.isNullOrEmpty() || uri == null) {
                     result.text = "拍照取消或失败"
                     preview.visibility = ImageView.GONE
                     return@takePhoto
@@ -163,6 +163,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Button>(R.id.btn_take_video).setOnClickListener {
+            PickIt.takeVideo(this) { success, filePath, uri ->
+                if (!success || filePath.isNullOrEmpty() || uri == null) {
+                    result.text = "录视频取消或失败"
+                    preview.visibility = ImageView.GONE
+                    return@takeVideo
+                }
+                result.text = buildString {
+                    append("录视频成功\n")
+                    append("path: $filePath\n")
+                    append("uri:  $uri")
+                }
+                showRecordedVideo(filePath, uri)
+                Toast.makeText(this, "已存入系统相册", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<Button>(R.id.btn_take_video_compress).setOnClickListener {
+            PickIt.with(this)
+                .takeVideo()
+                .smartVideoCompress(
+                    maxLongSide = 1280,
+                    targetBitRate = 2_500_000,
+                    frameRate = 30,
+                    minCompressBytes = 4L * 1024 * 1024,
+                    minDurationMs = 5_000L,
+                    minUsefulLongSide = 720,
+                )
+                .start { render(it) }
+        }
+
         // 2) 选图列表首位带"相机入口"item：用户可在 picker 内直接拍照并自动选中
         findViewById<Button>(R.id.btn_pick_with_camera).setOnClickListener {
             PickIt.with(this)
@@ -170,6 +201,16 @@ class MainActivity : AppCompatActivity() {
                 .maxCount(9)
                 .grid(true)
                 .spanCount(4)
+                .showCameraEntry(true)
+                .start { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_pick_video_with_camera).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.VIDEO)
+                .maxCount(3)
+                .grid(true)
+                .spanCount(3)
                 .showCameraEntry(true)
                 .start { render(it) }
         }
@@ -248,6 +289,27 @@ class MainActivity : AppCompatActivity() {
         preview.setBackgroundColor(android.graphics.Color.BLACK)
         preview.setImageResource(android.R.drawable.ic_media_play)
         preview.visibility = ImageView.VISIBLE
+    }
+
+    private fun showRecordedVideo(path: String, uri: android.net.Uri) {
+        val file = File(path)
+        val now = System.currentTimeMillis()
+        val item = MediaEntity(
+            id = -now,
+            uri = uri,
+            filePath = path,
+            displayName = file.name,
+            mimeType = "video/mp4",
+            sizeBytes = if (file.exists()) file.length() else 0L,
+            durationMs = 0L,
+            dateAddedSec = now / 1000,
+            width = 0,
+            height = 0,
+            mediaType = MediaType.VIDEO,
+        )
+        lastPicked = listOf(item)
+        lastPreviewIndex = 0
+        showVideoEntry()
     }
 
     private fun openFullScreenPreview() {

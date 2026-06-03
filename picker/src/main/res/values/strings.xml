@@ -8,13 +8,14 @@
     <string name="picker_toggle_grid">网格</string>
     <string name="picker_preview">预览</string>
     <string name="picker_take_photo">拍照</string>
+    <string name="picker_record_video">录视频</string>
     <string name="picker_manage">管理</string>
     <string name="picker_empty">无内容</string>
     <string name="picker_loading">加载中...</string>
     <string name="picker_loading_files">正在加载文件...</string>
     <string name="picker_partial_access_hint">您已允许应用访问部分照片，点击右侧可更换</string>
     <string name="picker_no_media_permission">未授予媒体权限</string>
-    <string name="picker_camera_permission_required">拍照需要相机权限</string>
+    <string name="picker_camera_permission_required">拍摄需要相机权限</string>
     <string name="picker_max_select">最多选择 %1$d 项</string>
     <string name="picker_over_limit">已超出上限 %1$d 项，请先取消其它选择</string>
     <string name="picker_done_count">完成(%1$d/%2$d)</string>

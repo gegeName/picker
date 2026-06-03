@@ -116,7 +116,29 @@ class MediaPickerActivity : AppCompatActivity() {
         if (ok) {
             p.onSuccess()
             val entity = CameraHelper.makeEntity(p.filePath, p.uri)
-            insertCapturedPhoto(entity)
+            insertCapturedMedia(entity)
+            MediaSelector.invalidateCache()
+        } else {
+            p.onFail()
+        }
+    }
+
+    private val videoCameraLauncher = registerForActivityResult(
+        ActivityResultContracts.CaptureVideo()
+    ) { success ->
+        val p = pendingCamera ?: return@registerForActivityResult
+        pendingCamera = null
+        val file = File(p.filePath)
+        val exists = file.exists()
+        val len = if (exists) file.length() else 0L
+        PickerLog.d(
+            "in-picker CaptureVideo success=$success exists=$exists size=$len path=${p.filePath}"
+        )
+        val ok = success && exists && len > 0
+        if (ok) {
+            p.onSuccess()
+            val entity = CameraHelper.makeVideoEntity(p.filePath, p.uri)
+            insertCapturedMedia(entity)
             MediaSelector.invalidateCache()
         } else {
             p.onFail()
@@ -141,14 +163,25 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun doLaunchCamera() {
-        val p = CameraHelper.prepare(this)
+        val p = if (shouldRecordVideoFromCameraEntry()) {
+            CameraHelper.prepareVideo(this)
+        } else {
+            CameraHelper.prepare(this)
+        }
         pendingCamera = p
-        cameraLauncher.launch(p.uri)
+        if (shouldRecordVideoFromCameraEntry()) {
+            videoCameraLauncher.launch(p.uri)
+        } else {
+            cameraLauncher.launch(p.uri)
+        }
     }
 
-    private fun insertCapturedPhoto(entity: MediaEntity) {
+    private fun shouldRecordVideoFromCameraEntry(): Boolean =
+        config.filter.type == MediaType.VIDEO
+
+    private fun insertCapturedMedia(entity: MediaEntity) {
         PickerLog.d(
-            "insertCapturedPhoto id=${entity.id} uri=${entity.uri} path=${entity.filePath} " +
+            "insertCapturedMedia id=${entity.id} uri=${entity.uri} path=${entity.filePath} " +
                 "all.size(before)=${Selection.all.size} adapter.itemCount=${adapter?.itemCount}"
         )
         if (!loadedKeys.add(keyOf(entity))) {
@@ -272,6 +305,13 @@ class MediaPickerActivity : AppCompatActivity() {
             },
             onCheckClick = { _, item -> onCheckToggle(item) },
             onCameraClick = { launchCamera() },
+            cameraEntryText = getString(
+                if (shouldRecordVideoFromCameraEntry()) {
+                    R.string.picker_record_video
+                } else {
+                    R.string.picker_take_photo
+                },
+            ),
         )
         recycler.layoutManager = if (isGrid)
             GridLayoutManager(this, config.gridSpanCount)
