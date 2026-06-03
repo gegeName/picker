@@ -38,29 +38,51 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     private var startWithCamera: Boolean = false
     private var startWithVideoCamera: Boolean = false
 
-    /** 设置选择的媒体类型，如图片、视频、音频或混合类型。 */
+    /**
+     * 设置选择的媒体类型，如图片、视频、音频或混合类型。
+     * @param type 媒体类型，决定默认查询哪个媒体库。
+     */
     fun type(type: MediaType) = apply {
         cfg.filter = MediaFilter.Builder(type).build()
     }
 
-    /** 传入完整过滤条件，可精确控制媒体类型、MIME 类型和额外查询条件。 */
+    /**
+     * 传入完整过滤条件，可精确控制媒体类型、MIME 类型和额外查询条件。
+     * @param filter 已构建好的过滤条件。
+     */
     fun filter(filter: MediaFilter) = apply { cfg.filter = filter }
 
-    /** 使用 DSL 构建过滤条件。 */
+    /**
+     * 使用 DSL 构建过滤条件。
+     * @param type 媒体类型，决定默认查询哪个媒体库。
+     * @param block 过滤条件构建回调，可添加 MIME 类型、大小、时长和额外查询条件。
+     */
     fun filter(type: MediaType, block: MediaFilter.Builder.() -> Unit = {}) = apply {
         cfg.filter = MediaFilter.Builder(type).apply(block).build()
     }
 
-    /** 最大选择数量，最小值按 1 处理。 */
+    /**
+     * 最大选择数量，最小值按 1 处理。
+     * @param n 最多可选择的数量。
+     */
     fun maxCount(n: Int) = apply { cfg.maxCount = n.coerceAtLeast(1) }
 
-    /** 是否以网格模式打开；false 时使用列表模式。 */
+    /**
+     * 是否以网格模式打开；false 时使用列表模式。
+     * @param enable true 使用网格，false 使用列表。
+     */
     fun grid(enable: Boolean) = apply { cfg.startInGrid = enable }
 
-    /** 网格列数，最小值按 2 处理。 */
+    /**
+     * 网格列数，最小值按 2 处理。
+     * @param n 网格每行列数。
+     */
     fun spanCount(n: Int) = apply { cfg.gridSpanCount = n.coerceAtLeast(2) }
 
-    /** 是否允许多选；false 时为单选模式。 */
+    /**
+     * 是否允许多选；false 时为单选模式。
+     * @param enable true 允许多选，false 仅允许单选。
+     */
     fun multiSelect(enable: Boolean) = apply { cfg.enableMultiSelect = enable }
 
     /** 链式拍照入口；可继续调用 crop/cropOval，最终以选择结果形式返回。 */
@@ -81,7 +103,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         cfg.enableMultiSelect = false
     }
 
-    /** 开启图片裁剪；裁剪模式只处理单张图片，内部会约束为单选。 */
+    /**
+     * 开启图片裁剪；裁剪模式只处理单张图片，内部会约束为单选。
+     * @param enable true 开启裁剪，false 关闭裁剪。
+     */
     @JvmOverloads
     fun crop(enable: Boolean = true) = apply {
         cfg.cropConfig.enabled = enable
@@ -91,7 +116,11 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         }
     }
 
-    /** 设置固定裁剪比例，例如 1:1、4:3；x/y <= 0 时等同于自由比例。 */
+    /**
+     * 设置固定裁剪比例，例如 1:1、4:3；x/y <= 0 时等同于自由比例。
+     * @param x 宽比例。
+     * @param y 高比例。
+     */
     fun cropAspectRatio(x: Int, y: Int) = apply {
         cfg.cropConfig.aspectX = x.coerceAtLeast(0)
         cfg.cropConfig.aspectY = y.coerceAtLeast(0)
@@ -108,6 +137,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      *
      * JPEG 会按 [quality] 压缩；PNG 会忽略质量参数。圆形裁剪会强制输出 PNG，
      * 以保留圆形外部的透明区域。quality 会被限制在 1..100。
+     * @param format 输出格式。
+     * @param quality JPEG 输出质量，范围 1..100；PNG 会忽略该参数。
      */
     @JvmOverloads
     fun cropOutput(format: CropOutputFormat, quality: Int = 90) = apply {
@@ -115,7 +146,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         cfg.cropConfig.outputQuality = quality.coerceIn(1, 100)
     }
 
-    /** 开启圆形裁剪；内部会自动开启裁剪、强制 1:1，并默认输出 PNG。 */
+    /**
+     * 开启圆形裁剪；内部会自动开启裁剪、强制 1:1，并默认输出 PNG。
+     * @param enable true 开启圆形裁剪，false 恢复普通矩形裁剪。
+     */
     @JvmOverloads
     fun cropOval(enable: Boolean = true) = apply {
         crop(enable)
@@ -132,6 +166,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      *
      * [CropShape.RECTANGLE] 为普通矩形裁剪；[CropShape.OVAL] 为圆形裁剪，
      * 会自动开启裁剪、强制 1:1，并默认输出 PNG。
+     * @param shape 裁剪框形状。
      */
     fun cropShape(shape: CropShape) = apply {
         cfg.cropConfig.cropShape = shape
@@ -148,16 +183,24 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      *
      * 实际输出不会超过该宽高；如果裁剪区域更小，则按原裁剪区域尺寸输出。
      * width/height 最小按 1 处理。
+     * @param width 最大输出宽度。
+     * @param height 最大输出高度。
      */
     fun cropMaxSize(width: Int, height: Int) = apply {
         cfg.cropConfig.maxOutputWidth = width.coerceAtLeast(1)
         cfg.cropConfig.maxOutputHeight = height.coerceAtLeast(1)
     }
 
-    /** 单次覆盖：仅本次调用使用该 engine，不影响全局 */
+    /**
+     * 单次覆盖：仅本次调用使用该图片加载引擎，不影响全局。
+     * @param engine 本次 picker 使用的图片加载引擎。
+     */
     fun imageEngine(engine: IImageEngine) = apply { MediaSelectorInternal.activeEngine = engine }
 
-    /** 单次覆盖：仅本次使用该图片压缩器 */
+    /**
+     * 单次覆盖：仅本次使用该图片压缩器。
+     * @param c 本次 picker 使用的图片压缩器。
+     */
     fun imageCompressor(c: IImageCompressor) = apply { MediaSelectorInternal.activeImageCompressor = c }
 
     /**
@@ -166,6 +209,13 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      * 小于 [ignoreByKb] 的图片跳过压缩；输出最长不超过 [maxWidth] x [maxHeight]，
      * JPEG 使用 [quality] 压缩，且不会低于 [minQuality]，避免肉眼可见的明显模糊。
      * 透明图片默认保留 PNG 透明通道。
+     * @param ignoreByKb 小于该 KB 值的图片跳过压缩。
+     * @param quality JPEG 初始输出质量，范围 1..100。
+     * @param minQuality JPEG 最低输出质量，范围 1..100。
+     * @param maxWidth 输出最大宽度。
+     * @param maxHeight 输出最大高度。
+     * @param minLongSide 多轮压缩时允许缩放到的最小长边。
+     * @param preserveAlpha true 时透明图片优先保留 PNG 透明通道。
      */
     @JvmOverloads
     fun smartCompress(
@@ -188,9 +238,21 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         )
     }
 
-    /** 单次覆盖：仅本次使用该视频压缩器 */
+    /**
+     * 单次覆盖：仅本次使用该视频压缩器。
+     * @param c 本次 picker 使用的视频压缩器。
+     */
     fun videoCompressor(c: IVideoCompressor) = apply { MediaSelectorInternal.activeVideoCompressor = c }
 
+    /**
+     * 本次选择启用内置 MediaCodec 视频压缩。
+     * @param maxLongSide 输出视频最长边上限。
+     * @param targetBitRate 目标视频码率。
+     * @param frameRate 输出帧率。
+     * @param minCompressBytes 小于该体积的视频跳过压缩。
+     * @param minDurationMs 短视频结合 [minUsefulLongSide] 判断是否跳过压缩。
+     * @param minUsefulLongSide 短视频低于该最长边时跳过压缩。
+     */
     @JvmOverloads
     fun smartVideoCompress(
         maxLongSide: Int = 1280,
@@ -210,21 +272,34 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         )
     }
 
-    /** 启用系统 Photo Picker（API 33+，零权限）。AUDIO 类型会回退到本框架 */
+    /**
+     * 启用系统 Photo Picker（API 33+，零权限）。AUDIO 类型会回退到本框架。
+     * @param enable true 优先使用系统 Photo Picker，false 使用本框架 picker。
+     */
     fun useSystemPhotoPicker(enable: Boolean) = apply { cfg.useSystemPhotoPicker = enable }
 
-    /** 使用系统 SAF 文件选择器（任意文件，Google Play 合规，不申请 MANAGE_EXTERNAL_STORAGE）。 */
+    /**
+     * 使用系统 SAF 文件选择器（任意文件，Google Play 合规，不申请 MANAGE_EXTERNAL_STORAGE）。
+     * @param enable true 使用系统 SAF 文件选择器，false 使用当前媒体选择逻辑。
+     */
     fun useSystemFilePicker(enable: Boolean) = apply { cfg.useSystemFilePicker = enable }
 
-    /** 列表首位显示"相机入口" */
+    /**
+     * 列表首位显示"相机入口"；图片模式为拍照入口，视频模式为录视频入口。
+     * @param enable true 显示入口，false 不显示。
+     */
     fun showCameraEntry(enable: Boolean) = apply { cfg.showCameraEntry = enable }
 
-    /** 传入已选过的项；打开 picker 时自动复选（按 id+mediaType 匹配） */
+    /**
+     * 传入已选过的项；打开 picker 时自动复选（按 id+mediaType 匹配）。
+     * @param list 需要预选的媒体列表。
+     */
     fun preSelected(list: List<MediaEntity>) = apply { cfg.preSelected = list }
 
     /**
      * 首次加载是否显示 loading 弹窗，默认 false。
      * 本地 MediaStore 查询通常很快，弹窗"一闪而过"体验差；当库较大或自定义筛选耗时时打开。
+     * @param enable true 显示首次加载 loading，false 不显示。
      */
     fun showFirstLoading(enable: Boolean) = apply { cfg.showFirstLoading = enable }
 
@@ -232,9 +307,14 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      * 压缩 loading 显示期间，按返回键/点击取消是否取消后台压缩并退出 picker。
      * 默认 false：压缩期间会拦截返回，等待压缩完成。
      * 传 true 时，按返回键/点击取消会取消压缩并退出 picker。
+     * @param enable true 允许返回取消压缩，false 压缩期间拦截返回。
      */
     fun cancelCompressOnBack(enable: Boolean) = apply { cfg.cancelCompressOnBack = enable }
 
+    /**
+     * 启动选择流程。
+     * @param listener 选择完成后的结果回调；取消选择时内部 picker 不回调。
+     */
     fun start(listener: OnPickResultListener) {
         if (startWithCamera) {
             MediaSelectorInternal.launchCameraPicker(activity, cfg, listener)
@@ -276,12 +356,21 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         const val EXTRA_RESULT = "picker_result"
         const val PAGE_SIZE = 50
 
+        /**
+         * 创建 Activity 版选择器。
+         * @param activity 用于启动 picker / 系统选择器的宿主 Activity。
+         */
         fun with(activity: ComponentActivity) = MediaSelector(activity)
 
+        /**
+         * 创建 Fragment 版选择器。
+         * @param fragment 用于获取宿主 Activity 并启动 picker / 系统选择器的 Fragment。
+         */
         fun with(fragment: Fragment) = MediaSelector(fragment.requireActivity())
 
         /**
          * 独立拍照入口：不进 picker UI，直接调系统相机拍一张并返回路径/uri。
+         * @param activity 用于启动系统相机的宿主 Activity。
          * @param listener onResult(success, filePath, uri)
          */
         @JvmStatic
@@ -294,6 +383,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * Fragment 版独立拍照入口；行为同 [takePhoto] Activity 版本。
+         * @param fragment 用于获取宿主 Activity 并启动系统相机的 Fragment。
+         * @param listener onResult(success, filePath, uri)
          */
         @JvmStatic
         fun takePhoto(fragment: Fragment, listener: OnPhotoTakenListener) {
@@ -302,6 +393,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * 独立录视频入口：不进 picker UI，直接调系统相机录像并返回路径/uri。
+         * @param activity 用于启动系统相机的宿主 Activity。
          * @param listener onResult(success, filePath, uri)
          */
         @JvmStatic
@@ -314,6 +406,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * Fragment 版独立录视频入口；行为同 [takeVideo] Activity 版本。
+         * @param fragment 用于获取宿主 Activity 并启动系统相机的 Fragment。
+         * @param listener onResult(success, filePath, uri)
          */
         @JvmStatic
         fun takeVideo(fragment: Fragment, listener: OnVideoRecordedListener) {
@@ -324,6 +418,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         /**
          * Google Play 友好的任意文件选择入口，基于系统 SAF，不申请 MANAGE_EXTERNAL_STORAGE。
          * 适合 PDF/ZIP/DOC 等非媒体文件；需要自定义媒体网格时继续使用 [with].
+         * @param activity 用于启动系统 SAF 的宿主 Activity。
+         * @param mimeTypes 可选择的 MIME 类型数组，默认任意文件。
+         * @param allowMultiple true 允许多选，false 单选。
+         * @param listener 文件选择完成后的结果回调。
          */
         @JvmStatic
         @JvmOverloads
@@ -343,6 +441,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * Fragment 版任意文件选择入口；行为同 [pickFiles] Activity 版本。
+         * @param fragment 用于获取宿主 Activity 并启动系统 SAF 的 Fragment。
+         * @param mimeTypes 可选择的 MIME 类型数组，默认任意文件。
+         * @param allowMultiple true 允许多选，false 单选。
+         * @param listener 文件选择完成后的结果回调。
          */
         @JvmStatic
         @JvmOverloads
@@ -376,23 +478,40 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
                 .start(listener)
         }
 
-        /** 全局设置图片加载引擎；传 null 恢复内置默认 */
+        /**
+         * 全局设置图片加载引擎；传 null 恢复内置默认。
+         * @param engine 全局图片加载引擎，null 表示使用内置默认实现。
+         */
         fun setImageEngine(engine: IImageEngine?) {
             MediaSelectorInternal.globalEngine = engine
         }
 
-        /** 全局注册"其他文件"预览扩展（doc/xls/pdf/zip 等）；传 null 取消 */
+        /**
+         * 全局注册"其他文件"预览扩展（doc/xls/pdf/zip 等）；传 null 取消。
+         * @param provider 其他文件预览扩展，null 表示取消扩展。
+         */
         fun setOtherPreviewProvider(provider: IOtherPreviewProvider?) {
             MediaSelectorInternal.globalOtherPreviewProvider = provider
         }
 
-        /** 全局设置图片压缩器；传 null 则不压缩图片 */
+        /**
+         * 全局设置图片压缩器；传 null 则不压缩图片。
+         * @param c 全局图片压缩器，null 表示不压缩图片。
+         */
         fun setImageCompressor(c: IImageCompressor?) {
             MediaSelectorInternal.globalImageCompressor = c
         }
 
         /**
          * 全局启用内置智能图片压缩；后续所有 picker 调用默认都会压缩图片。
+         *
+         * @param ignoreByKb 小于该 KB 值的图片跳过压缩。
+         * @param quality JPEG 初始输出质量，范围 1..100。
+         * @param minQuality JPEG 最低输出质量，范围 1..100。
+         * @param maxWidth 输出最大宽度。
+         * @param maxHeight 输出最大高度。
+         * @param minLongSide 多轮压缩时允许缩放到的最小长边。
+         * @param preserveAlpha true 时透明图片优先保留 PNG 透明通道。
          *
          * 如需取消，调用 [setImageCompressor] 并传 null。
          */
@@ -420,7 +539,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             )
         }
 
-        /** 全局设置视频压缩器；传 null 则不压缩视频 */
+        /**
+         * 全局设置视频压缩器；传 null 则不压缩视频。
+         * @param c 全局视频压缩器，null 表示不压缩视频。
+         */
         fun setVideoCompressor(c: IVideoCompressor?) {
             MediaSelectorInternal.globalVideoCompressor = c
         }
@@ -428,12 +550,12 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         /**
          * 全局启用内置 MediaCodec 视频压缩；后续所有 picker / takeVideo 调用默认都会压缩视频。
          *
-         * - [maxLongSide]：输出视频最长边上限。
-         * - [targetBitRate]：目标视频码率。
-         * - [frameRate]：输出帧率。
-         * - [minCompressBytes]：小于该体积的视频跳过压缩。
-         * - [minDurationMs]：短视频结合 [minUsefulLongSide] 判断是否跳过压缩。
-         * - [minUsefulLongSide]：短视频低于该最长边时跳过压缩。
+         * @param maxLongSide 输出视频最长边上限。
+         * @param targetBitRate 目标视频码率。
+         * @param frameRate 输出帧率。
+         * @param minCompressBytes 小于该体积的视频跳过压缩。
+         * @param minDurationMs 短视频结合 [minUsefulLongSide] 判断是否跳过压缩。
+         * @param minUsefulLongSide 短视频低于该最长边时跳过压缩。
          *
          * 如需取消全局视频压缩，调用 [setVideoCompressor] 并传 null。
          */
@@ -461,11 +583,16 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
         /**
          * 后台预查询：可在权限已就绪后调用，命中后列表页直接展示。
+         * @param context 用于查询 MediaStore 的 Context。
+         * @param types 需要预加载的媒体类型。
          */
         fun preload(context: Context, vararg types: MediaType) =
             MediaSelectorInternal.preload(context, types, PAGE_SIZE)
 
-        /** 获取已预加载或上次列表查询回写的首屏缓存；无缓存或缓存为空时返回 null。 */
+        /**
+         * 获取已预加载或上次列表查询回写的首屏缓存；无缓存或缓存为空时返回 null。
+         * @param type 要读取缓存的媒体类型。
+         */
         fun cached(type: MediaType): List<MediaEntity>? = MediaSelectorInternal.cached(type)
 
         /** 清空媒体列表缓存和文件扫描缓存；拍照、保存新文件或外部媒体变化后调用可强制下次重新查询。 */
