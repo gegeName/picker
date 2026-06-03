@@ -114,6 +114,7 @@ internal class VideoTranscoder(
         var encodeDone = false
 
         while (!encodeDone) {
+            throwIfInterrupted()
             if (!inputDone) {
                 val inIndex = decoder.dequeueInputBuffer(TIMEOUT_US)
                 if (inIndex >= 0) {
@@ -137,6 +138,7 @@ internal class VideoTranscoder(
 
             var decoderBusy = true
             while (decoderBusy && !decodeDone) {
+                throwIfInterrupted()
                 val outIndex = decoder.dequeueOutputBuffer(info, TIMEOUT_US)
                 when {
                     outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> decoderBusy = false
@@ -160,6 +162,7 @@ internal class VideoTranscoder(
 
             var encoderBusy = true
             while (encoderBusy) {
+                throwIfInterrupted()
                 val outIndex = encoder.dequeueOutputBuffer(info, TIMEOUT_US)
                 when {
                     outIndex == MediaCodec.INFO_TRY_AGAIN_LATER -> encoderBusy = false
@@ -193,6 +196,7 @@ internal class VideoTranscoder(
         val buffer = ByteBuffer.allocate(maxBufferSize)
         val info = MediaCodec.BufferInfo()
         while (true) {
+            throwIfInterrupted()
             val size = extractor.readSampleData(buffer, 0)
             if (size < 0) break
             info.offset = 0
@@ -201,6 +205,12 @@ internal class VideoTranscoder(
             info.flags = sampleFlagsToBufferFlags(extractor.sampleFlags)
             muxer.writeAudio(buffer, info)
             extractor.advance()
+        }
+    }
+
+    private fun throwIfInterrupted() {
+        if (Thread.currentThread().isInterrupted) {
+            throw InterruptedException("video transcode canceled")
         }
     }
 

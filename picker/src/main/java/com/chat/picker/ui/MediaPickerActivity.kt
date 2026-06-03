@@ -32,6 +32,7 @@ import com.chat.picker.util.PickerLog
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 class MediaPickerActivity : AppCompatActivity() {
@@ -442,8 +443,7 @@ class MediaPickerActivity : AppCompatActivity() {
             MediaSelector.clearActiveCompressors()
             ImageLoader.clear()
         }
-        compressPool?.shutdownNow()
-        compressPool = null
+        cancelCompression()
         dismissLoading()
         loadingDialog = null
     }
@@ -555,10 +555,19 @@ class MediaPickerActivity : AppCompatActivity() {
         a.id == b.id && a.mediaType == b.mediaType
 
     private var compressPool: ExecutorService? = null
+    private val compressCanceled = AtomicBoolean(false)
 
     private fun cancelPicker() {
+        cancelCompression()
         setResult(RESULT_CANCELED)
         finish()
+    }
+
+    private fun cancelCompression() {
+        compressCanceled.set(true)
+        compressPool?.shutdownNow()
+        compressPool = null
+        dismissLoading()
     }
 
     private fun finishWithResult() {
@@ -599,6 +608,7 @@ class MediaPickerActivity : AppCompatActivity() {
         imageC: IImageCompressor?,
         videoC: IVideoCompressor?,
     ) {
+        compressCanceled.set(false)
         val total = list.size
         val results = arrayOfNulls<MediaEntity>(total)
         val done = AtomicInteger()
@@ -612,10 +622,11 @@ class MediaPickerActivity : AppCompatActivity() {
         showLoading(buildProgressText(0, total, imgCount, vidCount))
 
         fun onItemDone(index: Int, result: MediaEntity) {
+            if (compressCanceled.get()) return
             results[index] = result
             val c = done.incrementAndGet()
             runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (compressCanceled.get() || isFinishing || isDestroyed) return@runOnUiThread
                 showLoading(buildProgressText(c, total, imgCount, vidCount))
                 if (c == total) {
                     pool.shutdown()
@@ -631,6 +642,9 @@ class MediaPickerActivity : AppCompatActivity() {
             }
             pool.execute {
                 try {
+                    if (compressCanceled.get() || Thread.currentThread().isInterrupted) {
+                        return@execute
+                    }
                     when {
                         item.isImage && imageC != null && imageC.needsCompress(item) ->
                             imageC.compress(applicationContext, item, callback)
