@@ -209,7 +209,8 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
     /**
      * 压缩 loading 显示期间，按返回键/点击取消是否取消后台压缩并退出 picker。
-     * 默认 true；传 false 时压缩期间会拦截返回，等待压缩完成。
+     * 默认 false：压缩期间会拦截返回，等待压缩完成。
+     * 传 true 时，按返回键/点击取消会取消压缩并退出 picker。
      */
     fun cancelCompressOnBack(enable: Boolean) = apply { cfg.cancelCompressOnBack = enable }
 
