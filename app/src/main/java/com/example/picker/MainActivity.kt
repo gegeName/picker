@@ -91,6 +91,23 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
+        findViewById<Button>(R.id.btn_pick_compress_video).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.VIDEO)
+                .maxCount(3)
+                .grid(true)
+                .spanCount(3)
+                .smartVideoCompress(
+                    maxLongSide = 1280,
+                    targetBitRate = 2_500_000,
+                    frameRate = 30,
+                    minCompressBytes = 4L * 1024 * 1024,
+                    minDurationMs = 5_000L,
+                    minUsefulLongSide = 720,
+                )
+                .start { render(it) }
+        }
+
         findViewById<Button>(R.id.btn_pick_crop_compress).setOnClickListener {
             PickIt.with(this)
                 .type(MediaType.IMAGE)

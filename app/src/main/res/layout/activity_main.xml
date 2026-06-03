@@ -87,6 +87,12 @@
             android:text="选图并压缩（智能压缩）" />
 
         <Button
+            android:id="@+id/btn_pick_compress_video"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择视频并压缩（MediaCodec）" />
+
+        <Button
             android:id="@+id/btn_pick_crop_compress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

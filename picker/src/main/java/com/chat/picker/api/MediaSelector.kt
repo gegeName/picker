@@ -7,6 +7,7 @@ import androidx.fragment.app.Fragment
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.compress.MediaCodecVideoCompressor
 import com.chat.picker.compress.SmartImageCompressor
 import com.chat.picker.loader.DefaultImageEngine
 import com.chat.picker.loader.IImageEngine
@@ -168,6 +169,25 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
     /** 单次覆盖：仅本次使用该视频压缩器 */
     fun videoCompressor(c: IVideoCompressor) = apply { MediaSelectorInternal.activeVideoCompressor = c }
+
+    @JvmOverloads
+    fun smartVideoCompress(
+        maxLongSide: Int = 1280,
+        targetBitRate: Int = 2_500_000,
+        frameRate: Int = 30,
+        minCompressBytes: Long = 4L * 1024 * 1024,
+        minDurationMs: Long = 5_000L,
+        minUsefulLongSide: Int = 720,
+    ) = apply {
+        MediaSelectorInternal.activeVideoCompressor = MediaCodecVideoCompressor(
+            maxLongSide = maxLongSide,
+            targetBitRate = targetBitRate,
+            frameRate = frameRate,
+            minCompressBytes = minCompressBytes,
+            minDurationMs = minDurationMs,
+            minUsefulLongSide = minUsefulLongSide,
+        )
+    }
 
     /** 启用系统 Photo Picker（API 33+，零权限）。AUDIO 类型会回退到本框架 */
     fun useSystemPhotoPicker(enable: Boolean) = apply { cfg.useSystemPhotoPicker = enable }
@@ -337,6 +357,28 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         /** 全局设置视频压缩器；传 null 则不压缩视频 */
         fun setVideoCompressor(c: IVideoCompressor?) {
             MediaSelectorInternal.globalVideoCompressor = c
+        }
+
+        @JvmStatic
+        @JvmOverloads
+        fun setSmartVideoCompressor(
+            maxLongSide: Int = 1280,
+            targetBitRate: Int = 2_500_000,
+            frameRate: Int = 30,
+            minCompressBytes: Long = 4L * 1024 * 1024,
+            minDurationMs: Long = 5_000L,
+            minUsefulLongSide: Int = 720,
+        ) {
+            setVideoCompressor(
+                MediaCodecVideoCompressor(
+                    maxLongSide = maxLongSide,
+                    targetBitRate = targetBitRate,
+                    frameRate = frameRate,
+                    minCompressBytes = minCompressBytes,
+                    minDurationMs = minDurationMs,
+                    minUsefulLongSide = minUsefulLongSide,
+                )
+            )
         }
 
         /**
