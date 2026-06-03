@@ -135,6 +135,12 @@
             android:text="独立拍照（不进 picker，直接返回路径）" />
 
         <Button
+            android:id="@+id/btn_take_photo_compress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="拍照并压缩（返回压缩后图片）" />
+
+        <Button
             android:id="@+id/btn_take_video"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

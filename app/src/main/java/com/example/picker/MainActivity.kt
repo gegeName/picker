@@ -163,6 +163,20 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Button>(R.id.btn_take_photo_compress).setOnClickListener {
+            PickIt.with(this)
+                .takePhoto()
+                .smartCompress(
+                    ignoreByKb = 100,
+                    quality = 85,
+                    minQuality = 75,
+                    maxWidth = 1080,
+                    maxHeight = 1920,
+                    minLongSide = 720,
+                )
+                .start { render(it) }
+        }
+
         findViewById<Button>(R.id.btn_take_video).setOnClickListener {
             PickIt.takeVideo(this) { success, filePath, uri ->
                 if (!success || filePath.isNullOrEmpty() || uri == null) {
