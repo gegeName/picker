@@ -20,12 +20,21 @@ import java.util.concurrent.atomic.AtomicBoolean
 class CompressCallback internal constructor(
     private val originalItem: MediaEntity,
     private val delivery: (MediaEntity) -> Unit,
+    private val progressDelivery: ((Int) -> Unit)? = null,
 ) {
     private val consumed = AtomicBoolean(false)
 
+    /** 压缩进度百分比，范围 0..100。 */
+    fun onProgress(percent: Int) {
+        if (!consumed.get()) progressDelivery?.invoke(percent.coerceIn(0, 100))
+    }
+
     /** 压缩成功：传压缩后的新 entity 给框架 */
     fun onSuccess(item: MediaEntity) {
-        if (consumed.compareAndSet(false, true)) delivery(item)
+        if (consumed.compareAndSet(false, true)) {
+            progressDelivery?.invoke(100)
+            delivery(item)
+        }
     }
 
     /**
@@ -34,6 +43,7 @@ class CompressCallback internal constructor(
      */
     fun onError(error: Throwable? = null) {
         if (consumed.compareAndSet(false, true)) {
+            progressDelivery?.invoke(100)
             if (PickerLog.enable) {
                 if (error != null) {
                     PickerLog.e(

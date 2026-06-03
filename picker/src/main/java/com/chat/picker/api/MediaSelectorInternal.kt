@@ -169,12 +169,15 @@ internal object MediaSelectorInternal {
             return
         }
 
-        val callback = CompressCallback(item) { result ->
-            activity.runOnUiThread {
-                clearRuntimeState()
-                listener.onResult(listOf(result))
-            }
-        }
+        val callback = CompressCallback(
+            originalItem = item,
+            delivery = { result ->
+                activity.runOnUiThread {
+                    clearRuntimeState()
+                    listener.onResult(listOf(result))
+                }
+            },
+        )
         val pool = Executors.newSingleThreadExecutor()
         try {
             pool.execute {

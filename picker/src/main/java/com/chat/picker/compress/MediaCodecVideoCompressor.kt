@@ -44,10 +44,13 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
         val app = context.applicationContext
         pool.execute {
             try {
+                callback.onProgress(0)
                 val dir = File(app.cacheDir, DIR_NAME).apply { mkdirs() }
                 val outFile = File(dir, "VID_${System.currentTimeMillis()}.mp4")
                 val result = VideoTranscoder(maxLongSide, targetBitRate, frameRate)
-                    .transcode(app, item.uri, outFile)
+                    .transcode(app, item.uri, outFile) { percent ->
+                        callback.onProgress(percent)
+                    }
 
                 if (result == null || !outFile.exists() || outFile.length() <= 0L) {
                     runCatching { outFile.delete() }

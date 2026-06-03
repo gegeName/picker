@@ -619,15 +619,70 @@ class MediaPickerActivity : AppCompatActivity() {
 
         val imgCount = list.count { it.isImage && imageC != null && imageC.needsCompress(it) }
         val vidCount = list.count { it.isVideo && videoC != null && videoC.needsCompress(it) }
-        showLoading(buildProgressText(0, total, imgCount, vidCount))
+        val imgDone = AtomicInteger()
+        val vidDone = AtomicInteger()
+        val imgPercent = AtomicInteger(if (imgCount > 0) 0 else 100)
+        val vidPercent = AtomicInteger(if (vidCount > 0) 0 else 100)
+        showLoading(buildProgressText(0, total, 0, imgCount, 0, vidCount, imgPercent.get(), vidPercent.get()))
+
+        fun updateItemProgress(item: MediaEntity, percent: Int) {
+            if (compressCanceled.get()) return
+            val safePercent = percent.coerceIn(0, 100)
+            when {
+                item.isImage && imageC != null && imageC.needsCompress(item) ->
+                    imgPercent.updateAndGet { current -> maxOf(current, safePercent) }
+                item.isVideo && videoC != null && videoC.needsCompress(item) ->
+                    vidPercent.updateAndGet { current -> maxOf(current, safePercent) }
+                else -> return
+            }
+            runOnUiThread {
+                if (compressCanceled.get() || isFinishing || isDestroyed) return@runOnUiThread
+                showLoading(
+                    buildProgressText(
+                        done.get(),
+                        total,
+                        imgDone.get(),
+                        imgCount,
+                        vidDone.get(),
+                        vidCount,
+                        imgPercent.get(),
+                        vidPercent.get(),
+                    ),
+                )
+            }
+        }
 
         fun onItemDone(index: Int, result: MediaEntity) {
             if (compressCanceled.get()) return
             results[index] = result
+            val item = list[index]
+            val imageProgress = if (item.isImage && imageC != null && imageC.needsCompress(item)) {
+                imgPercent.set(100)
+                imgDone.incrementAndGet()
+            } else {
+                imgDone.get()
+            }
+            val videoProgress = if (item.isVideo && videoC != null && videoC.needsCompress(item)) {
+                vidPercent.set(100)
+                vidDone.incrementAndGet()
+            } else {
+                vidDone.get()
+            }
             val c = done.incrementAndGet()
             runOnUiThread {
                 if (compressCanceled.get() || isFinishing || isDestroyed) return@runOnUiThread
-                showLoading(buildProgressText(c, total, imgCount, vidCount))
+                showLoading(
+                    buildProgressText(
+                        c,
+                        total,
+                        imageProgress,
+                        imgCount,
+                        videoProgress,
+                        vidCount,
+                        imgPercent.get(),
+                        vidPercent.get(),
+                    ),
+                )
                 if (c == total) {
                     pool.shutdown()
                     compressPool = null
@@ -637,9 +692,11 @@ class MediaPickerActivity : AppCompatActivity() {
         }
 
         list.forEachIndexed { i, item ->
-            val callback = CompressCallback(item) { result ->
-                onItemDone(i, result)
-            }
+            val callback = CompressCallback(
+                originalItem = item,
+                delivery = { result -> onItemDone(i, result) },
+                progressDelivery = { percent -> updateItemProgress(item, percent) },
+            )
             pool.execute {
                 try {
                     if (compressCanceled.get() || Thread.currentThread().isInterrupted) {
@@ -659,14 +716,35 @@ class MediaPickerActivity : AppCompatActivity() {
         }
     }
 
-    private fun buildProgressText(done: Int, total: Int, img: Int, vid: Int): String =
+    private fun buildProgressText(
+        done: Int,
+        total: Int,
+        imgDone: Int,
+        imgTotal: Int,
+        vidDone: Int,
+        vidTotal: Int,
+        imgPercent: Int,
+        vidPercent: Int,
+    ): String =
         buildString {
             append(getString(R.string.picker_compress_progress, done, total))
-            if (img > 0 || vid > 0) {
+            if (imgTotal > 0 || vidTotal > 0) {
                 append("\n")
-                if (img > 0) append(getString(R.string.picker_compress_image_count, img))
-                if (img > 0 && vid > 0) append("  ")
-                if (vid > 0) append(getString(R.string.picker_compress_video_count, vid))
+                if (imgTotal > 0) {
+                    append(getString(R.string.picker_compress_image_progress, imgDone, imgTotal))
+                }
+                if (imgTotal > 0 && vidTotal > 0) append("  ")
+                if (vidTotal > 0) {
+                    append(getString(R.string.picker_compress_video_progress, vidDone, vidTotal))
+                }
+                append("\n")
+                if (imgTotal > 0) {
+                    append(getString(R.string.picker_compress_image_percent, imgPercent))
+                }
+                if (imgTotal > 0 && vidTotal > 0) append("  ")
+                if (vidTotal > 0) {
+                    append(getString(R.string.picker_compress_video_percent, vidPercent))
+                }
             }
         }
 

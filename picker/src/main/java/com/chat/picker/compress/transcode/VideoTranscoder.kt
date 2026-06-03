@@ -19,7 +19,12 @@ internal class VideoTranscoder(
 
     data class Result(val width: Int, val height: Int)
 
-    fun transcode(context: Context, input: Uri, outFile: File): Result? {
+    fun transcode(
+        context: Context,
+        input: Uri,
+        outFile: File,
+        onProgress: (Int) -> Unit = {},
+    ): Result? {
         var videoExtractor: MediaExtractor? = null
         var audioExtractor: MediaExtractor? = null
         var decoder: MediaCodec? = null
@@ -40,11 +45,17 @@ internal class VideoTranscoder(
 
             val srcW = srcFormat.getInteger(MediaFormat.KEY_WIDTH)
             val srcH = srcFormat.getInteger(MediaFormat.KEY_HEIGHT)
+            val durationUs = if (srcFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                srcFormat.getLong(MediaFormat.KEY_DURATION)
+            } else {
+                0L
+            }
             val (outW, outH) = targetSize(srcW, srcH)
             if (outW >= srcW && outH >= srcH && srcLikelyLowBitrate(srcFormat)) {
                 PickerLog.d("transcode: source already small, skip")
                 return null
             }
+            onProgress(1)
 
             muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             applyOrientation(srcFormat, muxer)
@@ -77,11 +88,22 @@ internal class VideoTranscoder(
             val muxerState = MuxerState(muxer, hasAudio)
             if (hasAudio) muxerState.addAudioTrack(audioExtractor.getTrackFormat(audioTrack))
 
-            transcodeVideo(videoExtractor, decoder, outputSurface, inputSurface, encoder, muxerState)
+            transcodeVideo(
+                videoExtractor,
+                decoder,
+                outputSurface,
+                inputSurface,
+                encoder,
+                muxerState,
+                durationUs,
+                onProgress,
+            )
             if (hasAudio) {
+                onProgress(95)
                 copyAudio(audioExtractor, audioExtractor.getTrackFormat(audioTrack), muxerState)
             }
 
+            onProgress(99)
             return Result(outW, outH)
         } catch (e: Throwable) {
             PickerLog.e("transcode failed", e)
@@ -107,6 +129,8 @@ internal class VideoTranscoder(
         inputSurface: InputSurface,
         encoder: MediaCodec,
         muxer: MuxerState,
+        durationUs: Long,
+        onProgress: (Int) -> Unit,
     ) {
         val info = MediaCodec.BufferInfo()
         var inputDone = false
@@ -175,6 +199,7 @@ internal class VideoTranscoder(
                             info.size = 0
                         }
                         if (info.size > 0) muxer.writeVideo(buffer, info)
+                        reportVideoProgress(info.presentationTimeUs, durationUs, onProgress)
                         encoder.releaseOutputBuffer(outIndex, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                             encodeDone = true
@@ -184,6 +209,18 @@ internal class VideoTranscoder(
                 }
             }
         }
+    }
+
+    private fun reportVideoProgress(
+        presentationTimeUs: Long,
+        durationUs: Long,
+        onProgress: (Int) -> Unit,
+    ) {
+        if (durationUs <= 0L || presentationTimeUs <= 0L) return
+        val percent = (presentationTimeUs * 94L / durationUs)
+            .toInt()
+            .coerceIn(1, 94)
+        onProgress(percent)
     }
 
     private fun copyAudio(extractor: MediaExtractor, audioFormat: MediaFormat, muxer: MuxerState) {

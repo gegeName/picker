@@ -38,7 +38,8 @@ class SmartImageCompressor @JvmOverloads constructor(
             return
         }
         try {
-            callback.onSuccess(compressSync(context.applicationContext, item))
+            callback.onProgress(0)
+            callback.onSuccess(compressSync(context.applicationContext, item, callback))
         } catch (e: Throwable) {
             callback.onSuccess(item)
         }
@@ -61,9 +62,14 @@ class SmartImageCompressor @JvmOverloads constructor(
         }
     }
 
-    private fun compressSync(context: Context, item: MediaEntity): MediaEntity {
+    private fun compressSync(
+        context: Context,
+        item: MediaEntity,
+        callback: CompressCallback,
+    ): MediaEntity {
         val originalSize = resolveOriginalSize(context, item)
         val bounds = decodeBounds(context, item.uri)
+        callback.onProgress(10)
         val srcW = bounds.outWidth
         val srcH = bounds.outHeight
         if (srcW <= 0 || srcH <= 0) return item
@@ -71,13 +77,16 @@ class SmartImageCompressor @JvmOverloads constructor(
         val (targetW, targetH) = computeTargetSize(srcW, srcH)
         val sample = calcSampleSize(srcW, srcH, targetW, targetH)
         val decoded = decodeBitmap(context, item.uri, sample) ?: return item
+        callback.onProgress(35)
         val scaled = scaleIfNeeded(decoded, targetW, targetH)
         if (scaled !== decoded) decoded.recycle()
+        callback.onProgress(55)
 
         val saveAsPng = preserveAlpha && scaled.hasAlpha()
-        val output = saveSmallerOutput(context, scaled, saveAsPng, originalSize)
+        val output = saveSmallerOutput(context, scaled, saveAsPng, originalSize, callback)
         scaled.recycle()
         if (output == null) return item
+        callback.onProgress(90)
 
         val uri = FileProvider.getUriForFile(
             context,
@@ -103,6 +112,7 @@ class SmartImageCompressor @JvmOverloads constructor(
         source: Bitmap,
         preferPng: Boolean,
         originalSize: Long,
+        callback: CompressCallback,
     ): CompressedOutput? {
         var working = source
         var ownsWorking = false
@@ -123,6 +133,7 @@ class SmartImageCompressor @JvmOverloads constructor(
 
         try {
             repeat(5) { round ->
+                callback.onProgress(60 + round * 5)
                 if (preferPng) {
                     remember(saveBitmap(context, working, saveAsPng = true, quality = 100))
                     best?.takeIf { isSmallerThanOriginal(it) }?.let { return it }

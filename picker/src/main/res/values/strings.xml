@@ -20,8 +20,10 @@
     <string name="picker_done_count">完成(%1$d/%2$d)</string>
     <string name="picker_done_zero">完成(0)</string>
     <string name="picker_compress_progress">正在压缩 %1$d/%2$d</string>
-    <string name="picker_compress_image_count">图片×%1$d</string>
-    <string name="picker_compress_video_count">视频×%1$d</string>
+    <string name="picker_compress_image_progress">图片 %1$d/%2$d</string>
+    <string name="picker_compress_video_progress">视频 %1$d/%2$d</string>
+    <string name="picker_compress_image_percent">图片进度 %1$d%%</string>
+    <string name="picker_compress_video_percent">视频进度 %1$d%%</string>
     <string name="picker_crop_title">裁剪图片</string>
     <string name="picker_crop_rotate">旋转</string>
     <string name="picker_crop_flip_h">水平翻转</string>
