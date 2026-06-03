@@ -426,6 +426,10 @@ class MediaPickerActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
         if (firstLoad && !config.showFirstLoading) return
         val dlg = loadingDialog ?: LoadingDialog(this).also { loadingDialog = it }
+        dlg.setBackCancelEnabled(
+            enable = isCompressing && config.cancelCompressOnBack,
+            onCancel = { cancelPicker() },
+        )
         dlg.setText(text)
         if (!dlg.isShowing) dlg.show()
     }
