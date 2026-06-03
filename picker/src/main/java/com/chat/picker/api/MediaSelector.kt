@@ -207,6 +207,12 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      */
     fun showFirstLoading(enable: Boolean) = apply { cfg.showFirstLoading = enable }
 
+    /**
+     * 压缩 loading 显示期间，按返回键/点击取消是否取消后台压缩并退出 picker。
+     * 默认 true；传 false 时压缩期间会拦截返回，等待压缩完成。
+     */
+    fun cancelCompressOnBack(enable: Boolean) = apply { cfg.cancelCompressOnBack = enable }
+
     fun start(listener: OnPickResultListener) {
         if (startWithCamera) {
             MediaSelectorInternal.launchCameraPicker(activity, cfg, listener)

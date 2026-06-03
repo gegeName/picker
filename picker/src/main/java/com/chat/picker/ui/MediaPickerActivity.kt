@@ -32,6 +32,7 @@ import com.chat.picker.util.PickerLog
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -556,8 +557,13 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private var compressPool: ExecutorService? = null
     private val compressCanceled = AtomicBoolean(false)
+    private val isCompressing: Boolean
+        get() = compressPool != null
 
     private fun cancelPicker() {
+        if (isCompressing && !config.cancelCompressOnBack) {
+            return
+        }
         cancelCompression()
         setResult(RESULT_CANCELED)
         finish()
@@ -617,23 +623,35 @@ class MediaPickerActivity : AppCompatActivity() {
         val pool = Executors.newFixedThreadPool(parallel)
             .also { compressPool = it }
 
-        val imgCount = list.count { it.isImage && imageC != null && imageC.needsCompress(it) }
-        val vidCount = list.count { it.isVideo && videoC != null && videoC.needsCompress(it) }
+        val compressTypes = list.map { item ->
+            when {
+                item.isImage && imageC != null && imageC.needsCompress(item) -> COMPRESS_IMAGE
+                item.isVideo && videoC != null && videoC.needsCompress(item) -> COMPRESS_VIDEO
+                else -> COMPRESS_NONE
+            }
+        }
+        val imgCount = compressTypes.count { it == COMPRESS_IMAGE }
+        val vidCount = compressTypes.count { it == COMPRESS_VIDEO }
         val imgDone = AtomicInteger()
         val vidDone = AtomicInteger()
-        val imgPercent = AtomicInteger(if (imgCount > 0) 0 else 100)
-        val vidPercent = AtomicInteger(if (vidCount > 0) 0 else 100)
-        showLoading(buildProgressText(0, total, 0, imgCount, 0, vidCount, imgPercent.get(), vidPercent.get()))
+        val itemProgress = ConcurrentHashMap<Int, Int>()
+        showLoading(buildProgressText(0, total, 0, imgCount, 0, vidCount, 0, 0))
 
-        fun updateItemProgress(item: MediaEntity, percent: Int) {
+        fun averageProgress(isImage: Boolean): Int {
+            val indexes = list.indices.filter { index ->
+                compressTypes[index] == if (isImage) COMPRESS_IMAGE else COMPRESS_VIDEO
+            }
+            if (indexes.isEmpty()) return 100
+            return indexes.sumOf { itemProgress[it] ?: 0 } / indexes.size
+        }
+
+        fun updateItemProgress(index: Int, percent: Int) {
             if (compressCanceled.get()) return
             val safePercent = percent.coerceIn(0, 100)
-            when {
-                item.isImage && imageC != null && imageC.needsCompress(item) ->
-                    imgPercent.updateAndGet { current -> maxOf(current, safePercent) }
-                item.isVideo && videoC != null && videoC.needsCompress(item) ->
-                    vidPercent.updateAndGet { current -> maxOf(current, safePercent) }
-                else -> return
+            if (compressTypes[index] == COMPRESS_NONE) return
+            synchronized(itemProgress) {
+                val current = itemProgress[index] ?: 0
+                if (safePercent > current) itemProgress[index] = safePercent
             }
             runOnUiThread {
                 if (compressCanceled.get() || isFinishing || isDestroyed) return@runOnUiThread
@@ -645,8 +663,8 @@ class MediaPickerActivity : AppCompatActivity() {
                         imgCount,
                         vidDone.get(),
                         vidCount,
-                        imgPercent.get(),
-                        vidPercent.get(),
+                        averageProgress(isImage = true),
+                        averageProgress(isImage = false),
                     ),
                 )
             }
@@ -655,15 +673,14 @@ class MediaPickerActivity : AppCompatActivity() {
         fun onItemDone(index: Int, result: MediaEntity) {
             if (compressCanceled.get()) return
             results[index] = result
-            val item = list[index]
-            val imageProgress = if (item.isImage && imageC != null && imageC.needsCompress(item)) {
-                imgPercent.set(100)
+            val imageProgress = if (compressTypes[index] == COMPRESS_IMAGE) {
+                itemProgress[index] = 100
                 imgDone.incrementAndGet()
             } else {
                 imgDone.get()
             }
-            val videoProgress = if (item.isVideo && videoC != null && videoC.needsCompress(item)) {
-                vidPercent.set(100)
+            val videoProgress = if (compressTypes[index] == COMPRESS_VIDEO) {
+                itemProgress[index] = 100
                 vidDone.incrementAndGet()
             } else {
                 vidDone.get()
@@ -679,8 +696,8 @@ class MediaPickerActivity : AppCompatActivity() {
                         imgCount,
                         videoProgress,
                         vidCount,
-                        imgPercent.get(),
-                        vidPercent.get(),
+                        averageProgress(isImage = true),
+                        averageProgress(isImage = false),
                     ),
                 )
                 if (c == total) {
@@ -695,7 +712,7 @@ class MediaPickerActivity : AppCompatActivity() {
             val callback = CompressCallback(
                 originalItem = item,
                 delivery = { result -> onItemDone(i, result) },
-                progressDelivery = { percent -> updateItemProgress(item, percent) },
+                progressDelivery = { percent -> updateItemProgress(i, percent) },
             )
             pool.execute {
                 try {
@@ -703,9 +720,9 @@ class MediaPickerActivity : AppCompatActivity() {
                         return@execute
                     }
                     when {
-                        item.isImage && imageC != null && imageC.needsCompress(item) ->
+                        compressTypes[i] == COMPRESS_IMAGE && imageC != null ->
                             imageC.compress(applicationContext, item, callback)
-                        item.isVideo && videoC != null && videoC.needsCompress(item) ->
+                        compressTypes[i] == COMPRESS_VIDEO && videoC != null ->
                             videoC.compress(applicationContext, item, callback)
                         else -> callback.onSuccess(item)
                     }
@@ -755,5 +772,11 @@ class MediaPickerActivity : AppCompatActivity() {
         }
         setResult(Activity.RESULT_OK, intent)
         finish()
+    }
+
+    companion object {
+        private const val COMPRESS_NONE = 0
+        private const val COMPRESS_IMAGE = 1
+        private const val COMPRESS_VIDEO = 2
     }
 }

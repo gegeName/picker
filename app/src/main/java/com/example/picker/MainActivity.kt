@@ -92,6 +92,7 @@ class MainActivity : AppCompatActivity() {
                     maxHeight = 1920,
                     minLongSide = 720,
                 )
+                .cancelCompressOnBack(true)
                 .start { render(it) }
         }
 
@@ -109,6 +110,7 @@ class MainActivity : AppCompatActivity() {
                     minDurationMs = 5_000L,
                     minUsefulLongSide = 720,
                 )
+                .cancelCompressOnBack(true)
                 .start { render(it) }
         }
 
@@ -119,6 +121,7 @@ class MainActivity : AppCompatActivity() {
                 .cropAspectRatio(1, 1)
                 .cropMaxSize(1024, 1024)
                 .smartCompress()
+                .cancelCompressOnBack(true)
                 .start { render(it) }
         }
 

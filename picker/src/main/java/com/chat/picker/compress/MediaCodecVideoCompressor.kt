@@ -6,7 +6,6 @@ import com.chat.picker.compress.transcode.VideoTranscoder
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.util.PickerLog
 import java.io.File
-import java.util.concurrent.Executors
 
 class MediaCodecVideoCompressor @JvmOverloads constructor(
     private val maxLongSide: Int = 1280,
@@ -16,8 +15,6 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
     private val minDurationMs: Long = 5_000L,
     private val minUsefulLongSide: Int = 720,
 ) : IVideoCompressor {
-
-    private val pool = Executors.newSingleThreadExecutor()
 
     override fun needsCompress(item: MediaEntity): Boolean {
         if (!item.isVideo) return false
@@ -42,51 +39,49 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
             return
         }
         val app = context.applicationContext
-        pool.execute {
-            try {
-                callback.onProgress(0)
-                val dir = File(app.cacheDir, DIR_NAME).apply { mkdirs() }
-                val outFile = File(dir, "VID_${System.currentTimeMillis()}.mp4")
-                val result = VideoTranscoder(maxLongSide, targetBitRate, frameRate)
-                    .transcode(app, item.uri, outFile) { percent ->
-                        callback.onProgress(percent)
-                    }
-
-                if (result == null || !outFile.exists() || outFile.length() <= 0L) {
-                    runCatching { outFile.delete() }
-                    callback.onError(IllegalStateException("video transcode failed"))
-                    return@execute
+        try {
+            callback.onProgress(0)
+            val dir = File(app.cacheDir, DIR_NAME).apply { mkdirs() }
+            val outFile = File(dir, "VID_${System.currentTimeMillis()}.mp4")
+            val result = VideoTranscoder(maxLongSide, targetBitRate, frameRate)
+                .transcode(app, item.uri, outFile) { percent ->
+                    callback.onProgress(percent)
                 }
 
-                if (item.sizeBytes > 0L && outFile.length() >= item.sizeBytes) {
-                    PickerLog.d("compressed video is not smaller, fallback original")
-                    runCatching { outFile.delete() }
-                    callback.onError(IllegalStateException("compressed larger than source"))
-                    return@execute
-                }
-
-                val uri = FileProvider.getUriForFile(
-                    app,
-                    "${app.packageName}.chat.picker.fileprovider",
-                    outFile,
-                )
-                val now = System.currentTimeMillis()
-                callback.onSuccess(
-                    item.copy(
-                        id = -now,
-                        uri = uri,
-                        filePath = outFile.absolutePath,
-                        displayName = outFile.name,
-                        sizeBytes = outFile.length(),
-                        dateAddedSec = now / 1000,
-                        mimeType = "video/mp4",
-                        width = result.width,
-                        height = result.height,
-                    ),
-                )
-            } catch (e: Throwable) {
-                callback.onError(e)
+            if (result == null || !outFile.exists() || outFile.length() <= 0L) {
+                runCatching { outFile.delete() }
+                callback.onError(IllegalStateException("video transcode failed"))
+                return
             }
+
+            if (item.sizeBytes > 0L && outFile.length() >= item.sizeBytes) {
+                PickerLog.d("compressed video is not smaller, fallback original")
+                runCatching { outFile.delete() }
+                callback.onError(IllegalStateException("compressed larger than source"))
+                return
+            }
+
+            val uri = FileProvider.getUriForFile(
+                app,
+                "${app.packageName}.chat.picker.fileprovider",
+                outFile,
+            )
+            val now = System.currentTimeMillis()
+            callback.onSuccess(
+                item.copy(
+                    id = -now,
+                    uri = uri,
+                    filePath = outFile.absolutePath,
+                    displayName = outFile.name,
+                    sizeBytes = outFile.length(),
+                    dateAddedSec = now / 1000,
+                    mimeType = "video/mp4",
+                    width = result.width,
+                    height = result.height,
+                ),
+            )
+        } catch (e: Throwable) {
+            callback.onError(e)
         }
     }
 

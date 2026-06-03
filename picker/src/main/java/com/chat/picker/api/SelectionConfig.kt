@@ -36,6 +36,12 @@ class SelectionConfig {
      */
     var showFirstLoading: Boolean = false
 
+    /**
+     * 压缩 loading 显示期间，按返回键/点击取消是否取消后台压缩并退出 picker。
+     * 默认 true；设为 false 时压缩期间会拦截返回，避免用户中断压缩。
+     */
+    var cancelCompressOnBack: Boolean = true
+
     /** 图片裁剪配置；开启后仅单张图片选择会进入裁剪页。 */
     var cropConfig: CropConfig = CropConfig()
 }
