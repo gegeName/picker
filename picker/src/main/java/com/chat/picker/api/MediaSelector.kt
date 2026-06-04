@@ -126,6 +126,22 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 
     /**
+     * 使用第三方图片裁剪实现。调用 crop() 后如果设置了该处理器，将不进入内置裁剪页。
+     * 第三方处理完成后调用 callback.onSuccess(...)，结果仍会从 start { ... } 返回。
+     */
+    fun imageCropProcessor(processor: IImageProcessProcessor?) = apply {
+        cfg.imageCropProcessor = processor
+    }
+
+    /**
+     * 使用第三方图片编辑实现。调用 imageEdit() 后如果设置了该处理器，将不进入内置编辑页。
+     * 第三方处理完成后调用 callback.onSuccess(...)，结果仍会从 start { ... } 返回。
+     */
+    fun imageEditProcessor(processor: IImageProcessProcessor?) = apply {
+        cfg.imageEditProcessor = processor
+    }
+
+    /**
      * 设置固定裁剪比例，例如 1:1、4:3；x/y <= 0 时等同于自由比例。
      * @param x 宽比例。
      * @param y 高比例。

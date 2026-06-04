@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.chat.picker.R
+import com.chat.picker.api.ImageProcessCallback
 import com.chat.picker.api.MediaSelector
 import com.chat.picker.api.SelectionConfig
 import com.chat.picker.camera.CameraHelper
@@ -639,6 +640,50 @@ class MediaPickerActivity : AppCompatActivity() {
             (config.imageEditEnabled || (config.cropConfig.enabled && list.size == 1))
 
     private fun openCrop(items: List<MediaEntity>) {
+        val processor = if (config.imageEditEnabled) {
+            config.imageEditProcessor
+        } else {
+            config.imageCropProcessor
+        }
+        if (processor != null) {
+            val callback = object : ImageProcessCallback {
+                override fun onSuccess(result: List<MediaEntity>) {
+                    runOnUiThread {
+                        if (result.isEmpty()) {
+                            updateConfirmButton()
+                        } else {
+                            finishAfterCrop(result)
+                        }
+                    }
+                }
+
+                override fun onCancel() {
+                    runOnUiThread { updateConfirmButton() }
+                }
+
+                override fun onError(error: Throwable) {
+                    runOnUiThread {
+                        Toast.makeText(
+                            this@MediaPickerActivity,
+                            error.message ?: getString(R.string.picker_crop_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        updateConfirmButton()
+                    }
+                }
+            }
+            try {
+                processor.process(
+                    activity = this,
+                    items = items,
+                    cropConfig = config.cropConfig,
+                    callback = callback,
+                )
+            } catch (error: Throwable) {
+                callback.onError(error)
+            }
+            return
+        }
         cropLauncher.launch(Intent(this, CropImageActivity::class.java).apply {
             putParcelableArrayListExtra(CropImageActivity.EXTRA_SOURCES, ArrayList(items))
             putExtra(CropImageActivity.EXTRA_SOURCE, items.first())

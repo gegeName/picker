@@ -117,7 +117,7 @@ internal object MediaSelectorInternal {
             invalidateCache()
             val item = CameraHelper.makeEntity(path, uri)
             if (cfg.needsImageProcessing) {
-                launchCameraCrop(activity, item, listener)
+                launchCameraCrop(activity, item, cfg, listener)
             } else {
                 deliverCameraResult(activity, listOf(item), listener)
             }
@@ -147,8 +147,52 @@ internal object MediaSelectorInternal {
     private fun launchCameraCrop(
         activity: ComponentActivity,
         item: MediaEntity,
+        cfg: SelectionConfig,
         listener: OnPickResultListener,
     ) {
+        val processor = when {
+            cfg.imageEditEnabled -> cfg.imageEditProcessor
+            cfg.cropConfig.enabled -> cfg.imageCropProcessor
+            else -> null
+        }
+        if (processor != null) {
+            try {
+                processor.process(
+                    activity = activity,
+                    items = listOf(item),
+                    cropConfig = cfg.cropConfig,
+                    callback = object : ImageProcessCallback {
+                        override fun onSuccess(result: List<MediaEntity>) {
+                            activity.runOnUiThread {
+                                if (result.isEmpty()) {
+                                    clearRuntimeState()
+                                    listener.onResult(emptyList())
+                                } else {
+                                    deliverCameraResult(activity, result, listener)
+                                }
+                            }
+                        }
+
+                        override fun onCancel() {
+                            activity.runOnUiThread {
+                                clearRuntimeState()
+                                listener.onResult(emptyList())
+                            }
+                        }
+
+                        override fun onError(error: Throwable) {
+                            onCancel()
+                        }
+                    },
+                )
+            } catch (_: Throwable) {
+                activity.runOnUiThread {
+                    clearRuntimeState()
+                    listener.onResult(emptyList())
+                }
+            }
+            return
+        }
         lateinit var launcher: ActivityResultLauncher<Intent>
         launcher = activity.activityResultRegistry.register(
             "media_camera_crop_${System.currentTimeMillis()}",

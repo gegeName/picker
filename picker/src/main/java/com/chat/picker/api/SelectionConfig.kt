@@ -46,6 +46,8 @@ class SelectionConfig {
     /** 图片裁剪配置；开启后仅单张图片选择会进入裁剪页。 */
     var cropConfig: CropConfig = CropConfig()
     var imageEditEnabled: Boolean = false
+    var imageCropProcessor: IImageProcessProcessor? = null
+    var imageEditProcessor: IImageProcessProcessor? = null
 
     internal val needsImageProcessing: Boolean
         get() = cropConfig.enabled || imageEditEnabled
