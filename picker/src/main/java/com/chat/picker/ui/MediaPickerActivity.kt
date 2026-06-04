@@ -220,13 +220,17 @@ class MediaPickerActivity : AppCompatActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             @Suppress("DEPRECATION")
+            val items = result.data?.getParcelableArrayListExtra<MediaEntity>(
+                CropImageActivity.EXTRA_RESULTS
+            )
+            @Suppress("DEPRECATION")
             val item = result.data?.getParcelableExtra<MediaEntity>(
                 CropImageActivity.EXTRA_RESULT
             )
-            if (item != null) {
-                finishAfterCrop(listOf(item))
-            } else {
-                finishAfterCrop(Selection.selected.toList())
+            when {
+                !items.isNullOrEmpty() -> finishAfterCrop(items)
+                item != null -> finishAfterCrop(listOf(item))
+                else -> finishAfterCrop(Selection.selected.toList())
             }
         }
     }
@@ -623,18 +627,21 @@ class MediaPickerActivity : AppCompatActivity() {
     private fun finishWithResult() {
         val list = Selection.selected.toList()
         if (shouldCrop(list)) {
-            openCrop(list.first())
+            openCrop(list)
             return
         }
         finishAfterCrop(list)
     }
 
     private fun shouldCrop(list: List<MediaEntity>): Boolean =
-        config.cropConfig.enabled && list.size == 1 && list.first().isImage
+        list.isNotEmpty() &&
+            list.all { it.isImage } &&
+            (config.imageEditEnabled || (config.cropConfig.enabled && list.size == 1))
 
-    private fun openCrop(item: MediaEntity) {
+    private fun openCrop(items: List<MediaEntity>) {
         cropLauncher.launch(Intent(this, CropImageActivity::class.java).apply {
-            putExtra(CropImageActivity.EXTRA_SOURCE, item)
+            putParcelableArrayListExtra(CropImageActivity.EXTRA_SOURCES, ArrayList(items))
+            putExtra(CropImageActivity.EXTRA_SOURCE, items.first())
         })
     }
 

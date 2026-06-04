@@ -104,7 +104,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 
     /**
-     * 开启图片裁剪；裁剪模式只处理单张图片，内部会约束为单选。
+     * 开启图片裁剪；裁剪入口保持单张图片处理，只显示裁剪相关功能。
      * @param enable true 开启裁剪，false 关闭裁剪。
      */
     @JvmOverloads
@@ -114,6 +114,15 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             cfg.maxCount = 1
             cfg.enableMultiSelect = false
         }
+    }
+
+    /**
+     * 开启完整图片编辑；支持多图，并显示裁剪、画笔、文字、马赛克和底部画廊。
+     * @param enable true 开启图片编辑，false 关闭图片编辑。
+     */
+    @JvmOverloads
+    fun imageEdit(enable: Boolean = true) = apply {
+        cfg.imageEditEnabled = enable
     }
 
     /**
@@ -320,7 +329,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             MediaSelectorInternal.launchCameraPicker(activity, cfg, listener)
         } else if (startWithVideoCamera) {
             MediaSelectorInternal.launchVideoCameraPicker(activity, cfg, listener)
-        } else if (cfg.useSystemFilePicker && !cfg.cropConfig.enabled) {
+        } else if (cfg.useSystemFilePicker && !cfg.needsImageProcessing) {
             MediaSelectorInternal.launchDocumentPicker(
                 activity = activity,
                 mimeTypes = systemFilePickerMimeTypes(),
@@ -336,7 +345,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 
     private fun shouldUseSystemPhotoPicker(): Boolean =
-        !cfg.cropConfig.enabled &&
+        !cfg.needsImageProcessing &&
             cfg.useSystemPhotoPicker &&
             cfg.filter.type != MediaType.AUDIO &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU

@@ -142,6 +142,16 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
+        findViewById<Button>(R.id.btn_pick_image_edit).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .maxCount(9)
+                .grid(true)
+                .spanCount(4)
+                .imageEdit()
+                .start { render(it) }
+        }
+
         // ===== 拍照演示 =====
 
         // 1) 独立拍照：不进 picker，直接调起系统相机返回路径

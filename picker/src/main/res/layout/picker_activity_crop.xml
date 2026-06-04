@@ -25,6 +25,7 @@
             android:textColor="#FFFFFF" />
 
         <TextView
+            android:id="@+id/crop_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -40,21 +41,93 @@
             android:padding="6dp"
             android:text="@string/picker_crop_rotate"
             android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/crop_done_one"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/picker_bg_confirm_button"
+            android:gravity="center"
+            android:minWidth="76dp"
+            android:paddingHorizontal="8dp"
+            android:text="@string/picker_done_one"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/crop_done"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/picker_bg_confirm_button"
+            android:gravity="center"
+            android:minWidth="76dp"
+            android:paddingHorizontal="8dp"
+            android:text="@string/picker_done_all"
+            android:textColor="#FFFFFF" />
     </LinearLayout>
 
-    <com.chat.picker.crop.CropImageView
-        android:id="@+id/crop_image"
+    <FrameLayout
+        android:id="@+id/crop_image_container"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1">
 
-    <HorizontalScrollView
+        <com.chat.picker.crop.CropImageView
+            android:id="@+id/crop_image"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <EditText
+            android:id="@+id/crop_text_input"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#66000000"
+            android:gravity="center"
+            android:hint="@string/picker_crop_text_hint"
+            android:imeActionLabel="@string/picker_confirm"
+            android:imeActionId="6"
+            android:imeOptions="actionDone"
+            android:inputType="text"
+            android:maxLines="1"
+            android:minWidth="120dp"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="6dp"
+            android:singleLine="true"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#99FFFFFF"
+            android:textSize="24sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <LinearLayout
         android:id="@+id/crop_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="#222222"
-        android:fillViewport="true"
-        android:scrollbars="none">
+        android:orientation="vertical">
+
+        <HorizontalScrollView
+            android:id="@+id/crop_gallery_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="78dp"
+            android:fillViewport="false"
+            android:paddingVertical="7dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/crop_gallery"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp" />
+        </HorizontalScrollView>
+
+        <HorizontalScrollView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fillViewport="true"
+            android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -71,6 +144,58 @@
                 android:gravity="center"
                 android:paddingHorizontal="10dp"
                 android:text="@string/picker_crop_flip_h"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_mode_crop"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="@string/picker_crop_crop"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_brush"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="@string/picker_crop_brush"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_brush_color"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginHorizontal="6dp"
+                android:gravity="center"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_text"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="@string/picker_crop_text"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_text_color"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:layout_marginHorizontal="6dp"
+                android:gravity="center"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/crop_mosaic"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="@string/picker_crop_mosaic"
                 android:textColor="#FFFFFF" />
 
             <TextView
@@ -91,21 +216,7 @@
                 android:text="@string/picker_crop_reset"
                 android:textColor="#FFFFFF" />
 
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/crop_done"
-                android:layout_width="wrap_content"
-                android:layout_height="36dp"
-                android:background="@drawable/picker_bg_confirm_button"
-                android:gravity="center"
-                android:minWidth="80dp"
-                android:paddingHorizontal="14dp"
-                android:text="@string/picker_done"
-                android:textColor="#FFFFFF" />
         </LinearLayout>
-    </HorizontalScrollView>
+        </HorizontalScrollView>
+    </LinearLayout>
 </LinearLayout>

@@ -116,7 +116,7 @@ internal object MediaSelectorInternal {
 
             invalidateCache()
             val item = CameraHelper.makeEntity(path, uri)
-            if (cfg.cropConfig.enabled) {
+            if (cfg.needsImageProcessing) {
                 launchCameraCrop(activity, item, listener)
             } else {
                 deliverCameraResult(activity, listOf(item), listener)

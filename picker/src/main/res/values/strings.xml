@@ -3,6 +3,8 @@
     <string name="picker_cancel">取消</string>
     <string name="picker_back">返回</string>
     <string name="picker_done">完成</string>
+    <string name="picker_confirm">确定</string>
+    <string name="picker_done_all">全部完成</string>
     <string name="picker_title">选择文件</string>
     <string name="picker_toggle_list">列表</string>
     <string name="picker_toggle_grid">网格</string>
@@ -25,11 +27,18 @@
     <string name="picker_compress_video_progress">视频 %1$d/%2$d</string>
     <string name="picker_compress_image_percent">图片进度 %1$d%%</string>
     <string name="picker_compress_video_percent">视频进度 %1$d%%</string>
-    <string name="picker_crop_title">裁剪图片</string>
+    <string name="picker_crop_title">编辑图片</string>
     <string name="picker_crop_rotate">旋转</string>
     <string name="picker_crop_flip_h">水平翻转</string>
     <string name="picker_crop_flip_v">垂直翻转</string>
     <string name="picker_crop_reset">重置</string>
+    <string name="picker_crop_brush">画笔</string>
+    <string name="picker_crop_text">文字</string>
+    <string name="picker_crop_mosaic">马赛克</string>
+    <string name="picker_crop_crop">裁剪</string>
+    <string name="picker_crop_text_hint">输入文字</string>
+    <string name="picker_next">下一张</string>
+    <string name="picker_done_one">单张完成</string>
     <string name="picker_crop_failed">裁剪失败</string>
     <string name="picker_crop_save_failed">保存裁剪结果失败</string>
 </resources>

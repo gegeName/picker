@@ -93,7 +93,7 @@ internal object CropBitmapUtils {
         }
     }
 
-    private fun makeCircleBitmap(src: Bitmap): Bitmap {
+    fun makeCircleBitmap(src: Bitmap): Bitmap {
         val size = minOf(src.width, src.height)
         val left = ((src.width - size) / 2f).toInt()
         val top = ((src.height - size) / 2f).toInt()

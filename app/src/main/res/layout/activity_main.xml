@@ -119,6 +119,12 @@
             android:layout_height="wrap_content"
             android:text="拍照后圆形裁剪（PNG，最大 512）" />
 
+        <Button
+            android:id="@+id/btn_pick_image_edit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择图片后编辑（支持多图、文字、画笔、马赛克）" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
