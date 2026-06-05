@@ -121,6 +121,7 @@ internal class CropImageToolHelper(
     private val mosaicPoints = ArrayList<Point>()
     private val texts = ArrayList<TextItem>()
     private val eraserStrokes = ArrayList<EraserStroke>()
+    private val editRefs = ArrayList<EditRef>()
     private var nextEditOrder = 0
     private var selectedTextIndex = -1
     private var currentTextColor = Color.WHITE
@@ -156,7 +157,9 @@ internal class CropImageToolHelper(
         if (clean.isEmpty()) return
         currentTool = Tool.TEXT
         cropVisible = false
-        texts.add(createTextItem(clean, x, y))
+        val item = createTextItem(clean, x, y)
+        texts.add(item)
+        editRefs.add(EditRef.Text(item))
         selectedTextIndex = texts.lastIndex
         host.invalidateView()
     }
@@ -169,6 +172,7 @@ internal class CropImageToolHelper(
         }
         val clean = text.trim()
         if (clean.isEmpty()) {
+            editRefs.removeAll { it is EditRef.Text && it.item === item }
             texts.removeAt(index)
             selectedTextIndex = -1
             host.invalidateView()
@@ -232,32 +236,13 @@ internal class CropImageToolHelper(
         )
         canvas.clipRect(bounds)
         val block = host.dp(18f)
-        for (order in 0 until nextEditOrder) {
-            strokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
-            mosaicPoints.forEach {
-                if (it.order == order) {
-                    canvas.drawRect(
-                        it.x - block / 2f,
-                        it.y - block / 2f,
-                        it.x + block / 2f,
-                        it.y + block / 2f,
-                        mosaicPaint,
-                    )
-                }
+        editRefs.forEach {
+            when (it) {
+                is EditRef.Stroke -> canvas.drawPath(it.item.path, it.item.paint)
+                is EditRef.Mosaic -> drawMosaicPoint(canvas, it.item, block)
+                is EditRef.Text -> drawTextItem(canvas, it.item)
+                is EditRef.Eraser -> canvas.drawPath(it.item.path, eraserDrawPaint)
             }
-            texts.forEach {
-                if (it.order == order) {
-                    textPaint.color = it.color
-                    textPaint.textSize = it.textSize
-                    val layout = textLayoutFor(it)
-                    val padding = textPadding()
-                    val textSaveCount = canvas.save()
-                    canvas.translate(it.rect.left + padding, it.rect.top + padding)
-                    layout.draw(canvas)
-                    canvas.restoreToCount(textSaveCount)
-                }
-            }
-            eraserStrokes.forEach { if (it.order == order) canvas.drawPath(it.path, eraserDrawPaint) }
         }
         canvas.restoreToCount(saveCount)
     }
@@ -272,20 +257,51 @@ internal class CropImageToolHelper(
             textShadowRadius = host.dp(2f),
             textShadowDy = host.dp(1f),
             nextEditOrder = nextEditOrder,
-            strokes = strokes.map { StrokeSnapshot(Path(it.path), Paint(it.paint), it.order) },
-            mosaicPoints = mosaicPoints.map { MosaicPointSnapshot(it.x, it.y, it.order) },
-            mosaicPaint = Paint(mosaicPaint),
-            texts = texts.map {
-                TextSnapshot(
-                    text = it.text,
-                    rect = RectF(it.rect),
-                    textSize = it.textSize,
-                    color = it.color,
-                    order = it.order,
-                )
+            ops = editRefs.map {
+                when (it) {
+                    is EditRef.Stroke -> EditOpSnapshot.Stroke(
+                        StrokeSnapshot(Path(it.item.path), Paint(it.item.paint), it.item.order)
+                    )
+                    is EditRef.Mosaic -> EditOpSnapshot.Mosaic(
+                        MosaicPointSnapshot(it.item.x, it.item.y, it.item.order)
+                    )
+                    is EditRef.Text -> EditOpSnapshot.Text(
+                        TextSnapshot(
+                            text = it.item.text,
+                            rect = RectF(it.item.rect),
+                            textSize = it.item.textSize,
+                            color = it.item.color,
+                            order = it.item.order,
+                        )
+                    )
+                    is EditRef.Eraser -> EditOpSnapshot.Eraser(
+                        StrokeSnapshot(Path(it.item.path), Paint(eraserDrawPaint), it.item.order)
+                    )
+                }
             },
-            eraserStrokes = eraserStrokes.map { StrokeSnapshot(Path(it.path), Paint(eraserDrawPaint), it.order) },
+            mosaicPaint = Paint(mosaicPaint),
         )
+    }
+
+    private fun drawMosaicPoint(canvas: Canvas, point: Point, block: Float) {
+        canvas.drawRect(
+            point.x - block / 2f,
+            point.y - block / 2f,
+            point.x + block / 2f,
+            point.y + block / 2f,
+            mosaicPaint,
+        )
+    }
+
+    private fun drawTextItem(canvas: Canvas, item: TextItem) {
+        textPaint.color = item.color
+        textPaint.textSize = item.textSize
+        val layout = textLayoutFor(item)
+        val padding = textPadding()
+        val textSaveCount = canvas.save()
+        canvas.translate(item.rect.left + padding, item.rect.top + padding)
+        layout.draw(canvas)
+        canvas.restoreToCount(textSaveCount)
     }
 
     private fun saveAndClipToImage(canvas: Canvas): Int? {
@@ -315,6 +331,7 @@ internal class CropImageToolHelper(
         mosaicPoints.clear()
         texts.clear()
         eraserStrokes.clear()
+        editRefs.clear()
         selectedTextIndex = -1
     }
 
@@ -754,7 +771,9 @@ internal class CropImageToolHelper(
                     host.requestDisallowInterceptTouch(true)
                     val point = clampPointToImage(event.x, event.y) ?: return true
                     activePath = Path().apply { moveTo(point.x, point.y) }
-                    strokes.add(DrawStroke(activePath!!, Paint(brushPaint), nextEditOrder++))
+                    val stroke = DrawStroke(activePath!!, Paint(brushPaint), nextEditOrder++)
+                    strokes.add(stroke)
+                    editRefs.add(EditRef.Stroke(stroke))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -787,7 +806,9 @@ internal class CropImageToolHelper(
                     lastEraserX = point.x
                     lastEraserY = point.y
                     activePath = Path().apply { moveTo(point.x, point.y) }
-                    eraserStrokes.add(EraserStroke(activePath!!, nextEditOrder++))
+                    val stroke = EraserStroke(activePath!!, nextEditOrder++)
+                    eraserStrokes.add(stroke)
+                    editRefs.add(EditRef.Eraser(stroke))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -854,6 +875,7 @@ internal class CropImageToolHelper(
                         return true
                     }
                     if (isDeleteButtonHit(item.rect, event.x, event.y)) {
+                        editRefs.removeAll { it is EditRef.Text && it.item === item }
                         texts.removeAt(selectedTextIndex)
                         selectedTextIndex = -1
                         mode = TextMode.NONE
@@ -984,7 +1006,7 @@ internal class CropImageToolHelper(
                     if (!isPointInsideImage(event.x, event.y)) return true
                     host.requestDisallowInterceptTouch(true)
                     val point = clampPointToImage(event.x, event.y) ?: return true
-                    mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
+                    addMosaicPoint(point.x, point.y)
                     lastX = point.x
                     lastY = point.y
                     host.invalidateView()
@@ -992,7 +1014,7 @@ internal class CropImageToolHelper(
                 MotionEvent.ACTION_MOVE -> {
                     val point = clampPointToImage(event.x, event.y) ?: return true
                     if (hypot(point.x - lastX, point.y - lastY) < host.dp(6f)) return true
-                    mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
+                    addMosaicPoint(point.x, point.y)
                     lastX = point.x
                     lastY = point.y
                     host.invalidateView()
@@ -1002,6 +1024,12 @@ internal class CropImageToolHelper(
                 }
             }
             return true
+        }
+
+        private fun addMosaicPoint(x: Float, y: Float) {
+            val point = Point(x, y, nextEditOrder++)
+            mosaicPoints.add(point)
+            editRefs.add(EditRef.Mosaic(point))
         }
     }
 
@@ -1070,6 +1098,13 @@ internal class CropImageToolHelper(
         val order: Int,
     )
 
+    private sealed class EditRef {
+        data class Stroke(val item: DrawStroke) : EditRef()
+        data class Mosaic(val item: Point) : EditRef()
+        data class Text(val item: TextItem) : EditRef()
+        data class Eraser(val item: EraserStroke) : EditRef()
+    }
+
     data class EditSnapshot(
         val imageBounds: RectF,
         val viewWidth: Float,
@@ -1079,12 +1114,16 @@ internal class CropImageToolHelper(
         val textShadowRadius: Float,
         val textShadowDy: Float,
         val nextEditOrder: Int,
-        val strokes: List<StrokeSnapshot>,
-        val mosaicPoints: List<MosaicPointSnapshot>,
+        val ops: List<EditOpSnapshot>,
         val mosaicPaint: Paint,
-        val texts: List<TextSnapshot>,
-        val eraserStrokes: List<StrokeSnapshot>,
     )
+
+    sealed class EditOpSnapshot {
+        data class Stroke(val item: StrokeSnapshot) : EditOpSnapshot()
+        data class Mosaic(val item: MosaicPointSnapshot) : EditOpSnapshot()
+        data class Text(val item: TextSnapshot) : EditOpSnapshot()
+        data class Eraser(val item: StrokeSnapshot) : EditOpSnapshot()
+    }
 
     data class StrokeSnapshot(
         val path: Path,
@@ -1121,26 +1160,26 @@ internal class CropImageToolHelper(
                 null,
             )
             canvas.clipRect(snapshot.imageBounds)
-            for (order in 0 until snapshot.nextEditOrder) {
-                snapshot.strokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
-                snapshot.mosaicPoints.forEach {
-                    if (it.order == order) {
-                        val block = snapshot.blockSize
-                        canvas.drawRect(
-                            it.x - block / 2f,
-                            it.y - block / 2f,
-                            it.x + block / 2f,
-                            it.y + block / 2f,
-                            snapshot.mosaicPaint,
-                        )
-                    }
+            snapshot.ops.forEach {
+                when (it) {
+                    is EditOpSnapshot.Stroke -> canvas.drawPath(it.item.path, it.item.paint)
+                    is EditOpSnapshot.Mosaic -> drawMosaicSnapshot(canvas, it.item, snapshot)
+                    is EditOpSnapshot.Text -> drawTextSnapshot(canvas, it.item, snapshot)
+                    is EditOpSnapshot.Eraser -> canvas.drawPath(it.item.path, it.item.paint)
                 }
-                snapshot.texts.forEach {
-                    if (it.order == order) drawTextSnapshot(canvas, it, snapshot)
-                }
-                snapshot.eraserStrokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
             }
             canvas.restoreToCount(saveCount)
+        }
+
+        private fun drawMosaicSnapshot(canvas: Canvas, item: MosaicPointSnapshot, snapshot: EditSnapshot) {
+            val block = snapshot.blockSize
+            canvas.drawRect(
+                item.x - block / 2f,
+                item.y - block / 2f,
+                item.x + block / 2f,
+                item.y + block / 2f,
+                snapshot.mosaicPaint,
+            )
         }
 
         private fun drawTextSnapshot(canvas: Canvas, item: TextSnapshot, snapshot: EditSnapshot) {

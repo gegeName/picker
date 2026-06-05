@@ -38,7 +38,7 @@ internal class CropImageView @JvmOverloads constructor(
     private var bitmapToken = 0
     private var transformInProgress = false
     private var activeExportSnapshots = 0
-    private var recycleAfterExport: Bitmap? = null
+    private val recycleAfterExport = ArrayList<Bitmap>()
 
     override val cropRect = RectF()
     override val viewWidth: Int
@@ -256,8 +256,7 @@ internal class CropImageView @JvmOverloads constructor(
     private fun releaseExportSnapshot() {
         activeExportSnapshots = (activeExportSnapshots - 1).coerceAtLeast(0)
         if (activeExportSnapshots == 0) {
-            recycleAfterExport?.recycle()
-            recycleAfterExport = null
+            flushPendingRecycleIfSafe()
         }
     }
 
@@ -272,7 +271,7 @@ internal class CropImageView @JvmOverloads constructor(
     private fun recycleBitmapWhenSafe(value: Bitmap?) {
         if (value == null) return
         if (activeExportSnapshots > 0 || transformInProgress) {
-            recycleAfterExport = value
+            if (!recycleAfterExport.contains(value)) recycleAfterExport.add(value)
         } else {
             value.recycle()
         }
@@ -280,8 +279,8 @@ internal class CropImageView @JvmOverloads constructor(
 
     private fun flushPendingRecycleIfSafe() {
         if (activeExportSnapshots == 0 && !transformInProgress) {
-            recycleAfterExport?.recycle()
-            recycleAfterExport = null
+            recycleAfterExport.forEach { it.recycle() }
+            recycleAfterExport.clear()
         }
     }
 
