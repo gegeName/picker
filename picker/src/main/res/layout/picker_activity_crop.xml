@@ -173,6 +173,15 @@
                 android:textColor="#FFFFFF" />
 
             <TextView
+                android:id="@+id/crop_eraser"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:paddingHorizontal="10dp"
+                android:text="@string/picker_crop_eraser"
+                android:textColor="#FFFFFF" />
+
+            <TextView
                 android:id="@+id/crop_text"
                 android:layout_width="wrap_content"
                 android:layout_height="36dp"

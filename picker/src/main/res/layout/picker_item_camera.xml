@@ -19,7 +19,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:layout_marginBottom="8dp"
-        android:text="@string/picker_take_photo"
+        android:text="@string/picker_record_video"
         android:textColor="#FFFFFF"
         android:textSize="11sp" />
 </com.chat.picker.ui.SquareFrameLayout>

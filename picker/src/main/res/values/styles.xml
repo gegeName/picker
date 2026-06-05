@@ -19,4 +19,13 @@
         <item name="android:activityCloseEnterAnimation">@anim/picker_no_anim</item>
         <item name="android:activityCloseExitAnimation">@anim/picker_no_anim</item>
     </style>
+
+    <style name="PickerTextDialogTheme" parent="ThemeOverlay.AppCompat.Dialog.Alert">
+        <item name="android:windowAnimationStyle">@style/PickerTextDialogAnimation</item>
+    </style>
+
+    <style name="PickerTextDialogAnimation">
+        <item name="android:windowEnterAnimation">@anim/picker_dialog_enter</item>
+        <item name="android:windowExitAnimation">@anim/picker_dialog_exit</item>
+    </style>
 </resources>

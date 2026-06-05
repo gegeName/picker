@@ -5,15 +5,13 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.RectF
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -30,13 +28,12 @@ internal class CropImageActivity : AppCompatActivity() {
     private lateinit var cropView: CropImageView
     private lateinit var title: TextView
     private lateinit var gallery: LinearLayout
-    private lateinit var textInput: EditText
+    private var textDialog: AlertDialog? = null
     private var sources: List<MediaEntity> = emptyList()
     private val edited = ArrayList<MediaEntity?>()
     private val thumbs = ArrayList<ImageView>()
     private var brushColor = Color.RED
     private var textColor = Color.WHITE
-    private var committingTextInput = false
     private var editingTextIndex = -1
     private var imageEditMode = false
     private var index = 0
@@ -65,9 +62,8 @@ internal class CropImageActivity : AppCompatActivity() {
             bottomBar = findViewById(R.id.crop_bottom_bar),
         )
         cropView = findViewById(R.id.crop_image)
-        textInput = findViewById(R.id.crop_text_input)
         cropView.setOnTextEditRequestListener { textIndex, text, rect, color ->
-            showInlineTextInput(text, rect, color, textIndex)
+            showTextInputDialog(text, rect, color, textIndex)
         }
         title = findViewById(R.id.crop_title)
         gallery = findViewById(R.id.crop_gallery)
@@ -75,7 +71,6 @@ internal class CropImageActivity : AppCompatActivity() {
         buildGallery()
         applyModeUi()
         loadCurrent()
-        setupInlineTextInput()
 
         findViewById<TextView>(R.id.crop_cancel).setOnClickListener {
             setResult(Activity.RESULT_CANCELED)
@@ -111,16 +106,18 @@ internal class CropImageActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.crop_mosaic).setOnClickListener {
             cropView.setTool(CropImageToolHelper.Tool.MOSAIC)
         }
+        findViewById<TextView>(R.id.crop_eraser).setOnClickListener {
+            cropView.setTool(CropImageToolHelper.Tool.ERASER)
+        }
         findViewById<TextView>(R.id.crop_text).setOnClickListener {
             cropView.setTool(CropImageToolHelper.Tool.TEXT)
-            showInlineTextInput()
+            showTextInputDialog()
         }
         val textColorView = findViewById<TextView>(R.id.crop_text_color)
         updateColorCircle(textColorView, textColor)
         textColorView.setOnClickListener {
             showColorPicker(R.string.picker_crop_text) { color ->
                 textColor = color
-                if (textInput.visibility == View.VISIBLE) textInput.setTextColor(color)
                 cropView.setTextColor(color)
                 updateColorCircle(textColorView, color)
             }
@@ -134,7 +131,7 @@ internal class CropImageActivity : AppCompatActivity() {
     }
 
     private fun loadCurrent() {
-        if (textInput.visibility == View.VISIBLE) commitInlineTextInput()
+        textDialog?.dismiss()
         val cfg = MediaSelector.pendingConfig?.cropConfig ?: return
         val item = edited.getOrNull(index) ?: sources.getOrNull(index) ?: return
         val initialTool = if (imageEditMode) null else CropImageToolHelper.Tool.CROP
@@ -159,95 +156,68 @@ internal class CropImageActivity : AppCompatActivity() {
         findViewById<View>(R.id.crop_text).visibility = editVisibility
         findViewById<View>(R.id.crop_text_color).visibility = editVisibility
         findViewById<View>(R.id.crop_mosaic).visibility = editVisibility
-        textInput.visibility = View.GONE
+        findViewById<View>(R.id.crop_eraser).visibility = editVisibility
     }
 
-    private fun setupInlineTextInput() {
-        textInput.setImeActionLabel(getString(R.string.picker_confirm), EditorInfo.IME_ACTION_DONE)
-        textInput.setOnEditorActionListener { _, actionId, event ->
-            val isDone = actionId == EditorInfo.IME_ACTION_DONE ||
-                (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_UP)
-            if (isDone) {
-                commitInlineTextInput()
-                true
-            } else {
-                false
-            }
-        }
-        textInput.setOnFocusChangeListener { _, hasFocus ->
-            if (!hasFocus && textInput.visibility == View.VISIBLE) commitInlineTextInput()
-        }
-    }
-
-    private fun showInlineTextInput(
+    private fun showTextInputDialog(
         initialText: String = "",
         sourceRect: RectF? = null,
         color: Int = textColor,
         textIndex: Int = -1,
     ) {
-        if (textInput.visibility == View.VISIBLE) commitInlineTextInput()
+        textDialog?.dismiss()
         editingTextIndex = textIndex
         textColor = color
         updateColorCircle(findViewById(R.id.crop_text_color), textColor)
-        val imageBounds = cropView.getImageDisplayBounds()
-        textInput.setText(initialText)
-        textInput.setTextColor(textColor)
-        textInput.visibility = View.VISIBLE
-        val maxInputWidth = imageBounds.width().toInt().coerceAtLeast(dp(80f).toInt())
-        val maxInputHeight = imageBounds.height().toInt().coerceAtLeast(dp(40f).toInt())
-        val minInputWidth = minOf(dp(120f).toInt(), maxInputWidth)
-        val minInputHeight = minOf(dp(48f).toInt(), maxInputHeight)
-        textInput.layoutParams = (textInput.layoutParams as FrameLayout.LayoutParams).apply {
-            width = sourceRect?.width()?.toInt()?.coerceIn(minInputWidth, maxInputWidth)
-                ?: ViewGroup.LayoutParams.WRAP_CONTENT
-            height = sourceRect?.height()?.toInt()?.coerceIn(minInputHeight, maxInputHeight)
-                ?: ViewGroup.LayoutParams.WRAP_CONTENT
+        val content = layoutInflater.inflate(R.layout.picker_dialog_text_input, null)
+        val input = content.findViewById<EditText>(R.id.picker_text_dialog_input).apply {
+            setText(initialText)
+            setTextColor(textColor)
+            setSelection(text?.length ?: 0)
         }
-        textInput.post {
-            val width = textInput.measuredWidth.takeIf { it > 0 } ?: dp(160f).toInt()
-            val height = textInput.measuredHeight.takeIf { it > 0 } ?: dp(48f).toInt()
-            val maxLeft = (imageBounds.right - width).coerceAtLeast(imageBounds.left)
-            val maxTop = (imageBounds.bottom - height).coerceAtLeast(imageBounds.top)
-            val targetCenterX = sourceRect?.centerX() ?: imageBounds.centerX()
-            val targetCenterY = sourceRect?.centerY() ?: imageBounds.centerY()
-            val left = (targetCenterX - width / 2f)
-                .coerceIn(imageBounds.left, maxLeft)
-            val top = (targetCenterY - height / 2f)
-                .coerceIn(imageBounds.top, maxTop)
-            val lp = (textInput.layoutParams as FrameLayout.LayoutParams).apply {
-                this.leftMargin = left.toInt()
-                this.topMargin = top.toInt()
+        var committed = false
+        val dialog = AlertDialog.Builder(this, R.style.PickerTextDialogTheme)
+            .setView(content)
+            .create()
+        dialog.setCanceledOnTouchOutside(false)
+        content.findViewById<TextView>(R.id.picker_text_dialog_close).setOnClickListener {
+            dialog.dismiss()
+        }
+        content.findViewById<TextView>(R.id.picker_text_dialog_done).setOnClickListener {
+            dialog.dismiss()
+        }
+        dialog.setOnShowListener {
+            dialog.window?.apply {
+                setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+                attributes = attributes.apply {
+                    windowAnimations = R.style.PickerTextDialogAnimation
+                }
+                setDimAmount(0.55f)
+                setLayout((resources.displayMetrics.widthPixels * 0.86f).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
             }
-            textInput.layoutParams = lp
-            textInput.requestFocus()
-            textInput.setSelection(textInput.text?.length ?: 0)
-            showKeyboard(textInput)
+            input.requestFocus()
+            showKeyboard(input)
         }
+        dialog.setOnDismissListener {
+            if (!committed) {
+                committed = true
+                commitTextDialogInput(input.text?.toString().orEmpty(), sourceRect, textIndex)
+            }
+            if (textDialog === dialog) textDialog = null
+            editingTextIndex = -1
+        }
+        textDialog = dialog
+        dialog.show()
     }
 
-    private fun commitInlineTextInput() {
-        if (committingTextInput) return
-        committingTextInput = true
-        try {
-            val text = textInput.text?.toString().orEmpty()
-            val rect = RectF(
-                textInput.left.toFloat(),
-                textInput.top.toFloat(),
-                (textInput.left + textInput.width).toFloat(),
-                (textInput.top + textInput.height).toFloat(),
-            )
-            hideKeyboard(textInput)
-            textInput.visibility = View.GONE
-            textInput.clearFocus()
-            if (editingTextIndex >= 0) {
-                cropView.updateText(editingTextIndex, text, rect)
-            } else if (text.isNotBlank()) {
-                cropView.setTextColor(textColor)
-                cropView.addText(text, rect.centerX(), rect.centerY())
-            }
-        } finally {
-            editingTextIndex = -1
-            committingTextInput = false
+    private fun commitTextDialogInput(text: String, sourceRect: RectF?, textIndex: Int) {
+        if (textIndex >= 0) {
+            val rect = sourceRect ?: cropView.getImageDisplayBounds()
+            cropView.updateText(textIndex, text, rect)
+        } else if (text.isNotBlank()) {
+            val imageBounds = cropView.getImageDisplayBounds()
+            cropView.setTextColor(textColor)
+            cropView.addText(text, imageBounds.centerX(), imageBounds.centerY())
         }
     }
 
@@ -311,11 +281,6 @@ internal class CropImageActivity : AppCompatActivity() {
         }
     }
 
-    private fun hideKeyboard(view: View) {
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(view.windowToken, 0)
-    }
-
     private fun dp(value: Float): Float = value * resources.displayMetrics.density
 
     private fun buildGallery() {
@@ -350,7 +315,7 @@ internal class CropImageActivity : AppCompatActivity() {
     }
 
     private fun saveCurrent(showToast: Boolean): MediaEntity? {
-        if (textInput.visibility == View.VISIBLE) commitInlineTextInput()
+        textDialog?.dismiss()
         val cfg = MediaSelector.pendingConfig?.cropConfig ?: return null
         val cropped = cropView.crop()
         if (cropped == null) {
@@ -374,7 +339,7 @@ internal class CropImageActivity : AppCompatActivity() {
     }
 
     private fun finishAll() {
-        if (textInput.visibility == View.VISIBLE) commitInlineTextInput()
+        textDialog?.dismiss()
         saveCurrent(showToast = false)
         val list = ArrayList<MediaEntity>(sources.size)
         sources.forEachIndexed { i, item ->

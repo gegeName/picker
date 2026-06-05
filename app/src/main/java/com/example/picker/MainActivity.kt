@@ -152,6 +152,24 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
+        findViewById<Button>(R.id.btn_pick_photo_editor).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .maxCount(9)
+                .grid(true)
+                .spanCount(4)
+                .imageEdit()
+                .imageEditProcessor { activity, items, _, callback ->
+                    val requestId = PhotoEditorProcessStore.put(items, callback)
+                    activity.startActivity(
+                        Intent(activity, PhotoEditorDemoActivity::class.java).apply {
+                            putExtra(PhotoEditorDemoActivity.EXTRA_REQUEST_ID, requestId)
+                        }
+                    )
+                }
+                .start { render(it) }
+        }
+
         // ===== 拍照演示 =====
 
         // 1) 独立拍照：不进 picker，直接调起系统相机返回路径

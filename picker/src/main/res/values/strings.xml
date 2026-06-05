@@ -10,7 +10,7 @@
     <string name="picker_toggle_grid">网格</string>
     <string name="picker_preview">预览</string>
     <string name="picker_take_photo">拍照</string>
-    <string name="picker_record_video">录视频</string>
+    <string name="picker_record_video">拍摄</string>
     <string name="picker_manage">管理</string>
     <string name="picker_empty">无内容</string>
     <string name="picker_loading">加载中...</string>
@@ -33,6 +33,7 @@
     <string name="picker_crop_flip_v">垂直翻转</string>
     <string name="picker_crop_reset">重置</string>
     <string name="picker_crop_brush">画笔</string>
+    <string name="picker_crop_eraser">橡皮擦</string>
     <string name="picker_crop_text">文字</string>
     <string name="picker_crop_mosaic">马赛克</string>
     <string name="picker_crop_crop">裁剪</string>

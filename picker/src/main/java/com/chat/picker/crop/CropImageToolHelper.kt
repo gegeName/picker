@@ -4,6 +4,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.ViewConfiguration
@@ -60,6 +62,16 @@ internal class CropImageToolHelper(
         style = Paint.Style.STROKE
         strokeWidth = host.dp(1.5f)
     }
+    private val deleteButtonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFE53935.toInt()
+        style = Paint.Style.FILL
+    }
+    private val deleteIconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeWidth = host.dp(2f)
+    }
     private val brushPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.RED
         style = Paint.Style.STROKE
@@ -71,6 +83,18 @@ internal class CropImageToolHelper(
         color = 0xCCBDBDBD.toInt()
         style = Paint.Style.FILL
     }
+    private val eraserPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        style = Paint.Style.STROKE
+        strokeWidth = host.dp(2f)
+    }
+    private val eraserDrawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        strokeWidth = host.dp(36f)
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
+    }
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = host.dp(26f)
@@ -81,6 +105,7 @@ internal class CropImageToolHelper(
         Tool.NONE to NoneHandler(),
         Tool.CROP to CropHandler(),
         Tool.BRUSH to BrushHandler(),
+        Tool.ERASER to EraserHandler(),
         Tool.TEXT to TextHandler(),
         Tool.MOSAIC to MosaicHandler(),
         Tool.ROTATE to RotateHandler(),
@@ -91,6 +116,8 @@ internal class CropImageToolHelper(
     private val strokes = ArrayList<DrawStroke>()
     private val mosaicPoints = ArrayList<Point>()
     private val texts = ArrayList<TextItem>()
+    private val eraserStrokes = ArrayList<EraserStroke>()
+    private var nextEditOrder = 0
     private var selectedTextIndex = -1
     private var currentTextColor = Color.WHITE
 
@@ -179,30 +206,46 @@ internal class CropImageToolHelper(
     }
 
     fun drawEdits(canvas: Canvas) {
-        strokes.forEach { canvas.drawPath(it.path, it.paint) }
+        val saveCount = canvas.saveLayer(
+            0f,
+            0f,
+            host.viewWidth.toFloat(),
+            host.viewHeight.toFloat(),
+            null,
+        )
         val block = host.dp(18f)
-        mosaicPoints.forEach {
-            canvas.drawRect(
-                it.x - block / 2f,
-                it.y - block / 2f,
-                it.x + block / 2f,
-                it.y + block / 2f,
-                mosaicPaint,
-            )
+        for (order in 0 until nextEditOrder) {
+            strokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
+            mosaicPoints.forEach {
+                if (it.order == order) {
+                    canvas.drawRect(
+                        it.x - block / 2f,
+                        it.y - block / 2f,
+                        it.x + block / 2f,
+                        it.y + block / 2f,
+                        mosaicPaint,
+                    )
+                }
+            }
+            texts.forEach {
+                if (it.order == order) {
+                    textPaint.color = it.color
+                    textPaint.textSize = it.textSize
+                    val metrics = textPaint.fontMetrics
+                    val baseline = it.rect.centerY() - (metrics.ascent + metrics.descent) / 2f
+                    canvas.drawText(it.text, it.rect.left + textPadding(), baseline, textPaint)
+                }
+            }
+            eraserStrokes.forEach { if (it.order == order) canvas.drawPath(it.path, eraserDrawPaint) }
         }
-        texts.forEach {
-            textPaint.color = it.color
-            textPaint.textSize = it.textSize
-            val metrics = textPaint.fontMetrics
-            val baseline = it.rect.centerY() - (metrics.ascent + metrics.descent) / 2f
-            canvas.drawText(it.text, it.rect.left + textPadding(), baseline, textPaint)
-        }
+        canvas.restoreToCount(saveCount)
     }
 
     private fun clearEdits() {
         strokes.clear()
         mosaicPoints.clear()
         texts.clear()
+        eraserStrokes.clear()
         selectedTextIndex = -1
     }
 
@@ -210,7 +253,7 @@ internal class CropImageToolHelper(
         val textSize = host.dp(26f)
         val rect = textRectFor(text, textSize, x, y)
         constrainRectToImage(rect)
-        return TextItem(text, rect, textSize, currentTextColor).also {
+        return TextItem(text, rect, textSize, currentTextColor, nextEditOrder++).also {
             resizeTextToRect(it)
         }
     }
@@ -268,15 +311,32 @@ internal class CropImageToolHelper(
 
     private fun drawTextBox(canvas: Canvas, item: TextItem) {
         canvas.drawRect(item.rect, textBoxPaint)
-        val size = host.dp(9f)
-        drawTextHandle(canvas, item.rect.left, item.rect.top, size)
-        drawTextHandle(canvas, item.rect.right, item.rect.top, size)
-        drawTextHandle(canvas, item.rect.left, item.rect.bottom, size)
-        drawTextHandle(canvas, item.rect.right, item.rect.bottom, size)
+        drawTextResizeHandles(canvas, item.rect)
+        drawDeleteButton(canvas, item.rect)
     }
 
-    private fun drawTextHandle(canvas: Canvas, x: Float, y: Float, size: Float) {
-        canvas.drawRect(x - size, y - size, x + size, y + size, handlePaint)
+    private fun drawTextResizeHandles(canvas: Canvas, rect: RectF) {
+        val len = host.dp(22f)
+        canvas.drawLine(rect.right, rect.top, rect.right - len, rect.top, handlePaint)
+        canvas.drawLine(rect.right, rect.top, rect.right, rect.top + len, handlePaint)
+        canvas.drawLine(rect.left, rect.bottom, rect.left + len, rect.bottom, handlePaint)
+        canvas.drawLine(rect.left, rect.bottom, rect.left, rect.bottom - len, handlePaint)
+        canvas.drawLine(rect.right, rect.bottom, rect.right - len, rect.bottom, handlePaint)
+        canvas.drawLine(rect.right, rect.bottom, rect.right, rect.bottom - len, handlePaint)
+    }
+
+    private fun drawDeleteButton(canvas: Canvas, rect: RectF) {
+        val radius = host.dp(11f)
+        val cx = rect.left
+        val cy = rect.top
+        canvas.drawCircle(cx, cy, radius, deleteButtonPaint)
+        val iconSize = host.dp(5f)
+        canvas.drawLine(cx - iconSize, cy - iconSize, cx + iconSize, cy + iconSize, deleteIconPaint)
+        canvas.drawLine(cx + iconSize, cy - iconSize, cx - iconSize, cy + iconSize, deleteIconPaint)
+    }
+
+    private fun isDeleteButtonHit(rect: RectF, x: Float, y: Float): Boolean {
+        return hypot(x - rect.left, y - rect.top) <= host.dp(24f)
     }
 
     private fun findEditableTextIndex(x: Float, y: Float): Int {
@@ -529,7 +589,7 @@ internal class CropImageToolHelper(
                 MotionEvent.ACTION_DOWN -> {
                     host.requestDisallowInterceptTouch(true)
                     activePath = Path().apply { moveTo(event.x, event.y) }
-                    strokes.add(DrawStroke(activePath!!, Paint(brushPaint)))
+                    strokes.add(DrawStroke(activePath!!, Paint(brushPaint), nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -543,6 +603,48 @@ internal class CropImageToolHelper(
             }
             return true
         }
+    }
+
+    private inner class EraserHandler : ToolHandler {
+        private var activePath: Path? = null
+
+        override fun onReset() {
+            activePath = null
+        }
+
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    host.requestDisallowInterceptTouch(true)
+                    lastEraserX = event.x
+                    lastEraserY = event.y
+                    activePath = Path().apply { moveTo(event.x, event.y) }
+                    eraserStrokes.add(EraserStroke(activePath!!, nextEditOrder++))
+                    host.invalidateView()
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    lastEraserX = event.x
+                    lastEraserY = event.y
+                    activePath?.lineTo(event.x, event.y)
+                    host.invalidateView()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    activePath = null
+                    host.requestDisallowInterceptTouch(false)
+                }
+            }
+            return true
+        }
+
+        override fun drawOverlay(canvas: Canvas) {
+            val radius = eraserRadius()
+            canvas.drawCircle(lastEraserX, lastEraserY, radius, eraserPaint)
+        }
+
+        private var lastEraserX = -1000f
+        private var lastEraserY = -1000f
+
+        private fun eraserRadius(): Float = host.dp(18f)
     }
 
     private inner class TextHandler : ToolHandler {
@@ -579,6 +681,14 @@ internal class CropImageToolHelper(
                     val item = texts.getOrNull(selectedTextIndex)
                     if (item == null) {
                         mode = TextMode.NONE
+                        host.invalidateView()
+                        return true
+                    }
+                    if (isDeleteButtonHit(item.rect, event.x, event.y)) {
+                        texts.removeAt(selectedTextIndex)
+                        selectedTextIndex = -1
+                        mode = TextMode.NONE
+                        host.requestDisallowInterceptTouch(false)
                         host.invalidateView()
                         return true
                     }
@@ -695,11 +805,11 @@ internal class CropImageToolHelper(
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     host.requestDisallowInterceptTouch(true)
-                    mosaicPoints.add(Point(event.x, event.y))
+                    mosaicPoints.add(Point(event.x, event.y, nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    mosaicPoints.add(Point(event.x, event.y))
+                    mosaicPoints.add(Point(event.x, event.y, nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -752,6 +862,7 @@ internal class CropImageToolHelper(
         NONE,
         CROP,
         BRUSH,
+        ERASER,
         TEXT,
         MOSAIC,
         ROTATE,
@@ -763,12 +874,14 @@ internal class CropImageToolHelper(
     private enum class Mode { NONE, DRAG_IMAGE, ZOOM_IMAGE, MOVE_CROP, RESIZE_CROP }
     private enum class TextMode { NONE, MOVE, RESIZE }
 
-    private data class DrawStroke(val path: Path, val paint: Paint)
-    private data class Point(val x: Float, val y: Float)
+    private data class DrawStroke(val path: Path, val paint: Paint, val order: Int)
+    private data class EraserStroke(val path: Path, val order: Int)
+    private data class Point(val x: Float, val y: Float, val order: Int)
     private data class TextItem(
         var text: String,
         val rect: RectF,
         var textSize: Float,
         var color: Int,
+        val order: Int,
     )
 }

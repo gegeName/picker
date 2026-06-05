@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("com.burhanrashid52:photoeditor:3.1.0")
     implementation(project(":picker"))
     implementation(libs.material)
     testImplementation(libs.junit)

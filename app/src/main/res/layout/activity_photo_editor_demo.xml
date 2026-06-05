@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#111111"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp">
+
+        <TextView
+            android:id="@+id/photo_editor_cancel"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="取消"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/photo_editor_title"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/photo_editor_done_one"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="完成当前"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/photo_editor_done_all"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="总完成"
+            android:textColor="#4FC3F7"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <ja.burhanrashid52.photoeditor.PhotoEditorView
+        android:id="@+id/photo_editor_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#000000"
+        app:photo_src="@android:color/transparent" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:background="#1B1B1B"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <Button
+                android:id="@+id/photo_editor_prev"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="上一张" />
+
+            <Button
+                android:id="@+id/photo_editor_next"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="下一张" />
+
+            <Button
+                android:id="@+id/photo_editor_brush"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="画笔" />
+
+            <Button
+                android:id="@+id/photo_editor_text"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="文字" />
+
+            <Button
+                android:id="@+id/photo_editor_red"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="红色" />
+
+            <Button
+                android:id="@+id/photo_editor_blue"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="蓝色" />
+
+            <Button
+                android:id="@+id/photo_editor_undo"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="撤销" />
+
+            <Button
+                android:id="@+id/photo_editor_redo"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:text="重做" />
+        </LinearLayout>
+    </HorizontalScrollView>
+</LinearLayout>
