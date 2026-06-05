@@ -206,10 +206,16 @@ internal class CropImageActivity : AppCompatActivity() {
 
     private fun buildGallery() {
         galleryController.bind(sources, edited) { selectedIndex ->
-            index = selectedIndex
-            loadCurrent()
+            switchToImage(selectedIndex)
         }
         updateGallerySelection()
+    }
+
+    private fun switchToImage(selectedIndex: Int) {
+        if (selectedIndex == index || selectedIndex !in sources.indices) return
+        if (saveCurrent(showToast = false) == null) return
+        index = selectedIndex
+        loadCurrent()
     }
 
     private fun updateGallerySelection() {
