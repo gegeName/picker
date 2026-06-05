@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.chat.picker.api.ImageProcessStore
 import com.chat.picker.model.MediaEntity
 import ja.burhanrashid52.photoeditor.PhotoEditor
 import ja.burhanrashid52.photoeditor.PhotoEditorView
@@ -32,8 +33,8 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_photo_editor_demo)
 
-        requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
-        items = PhotoEditorProcessStore.items(requestId).filter { it.isImage }
+        requestId = intent.getStringExtra(ImageProcessStore.EXTRA_REQUEST_ID).orEmpty()
+        items = ImageProcessStore.items(requestId).filter { it.isImage }
         if (requestId.isEmpty() || items.isEmpty()) {
             finish()
             return
@@ -61,7 +62,7 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.photo_editor_done_all).setOnClickListener {
             saveCurrent {
                 completed = true
-                PhotoEditorProcessStore.success(requestId, editedItems)
+                ImageProcessStore.success(requestId, editedItems)
                 finish()
             }
         }
@@ -142,7 +143,7 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
             override fun onFailure(exception: Exception) {
                 saving = false
                 completed = true
-                PhotoEditorProcessStore.error(requestId, exception)
+                ImageProcessStore.error(requestId, exception)
                 Toast.makeText(
                     this@PhotoEditorDemoActivity,
                     exception.message ?: "保存失败",
@@ -176,11 +177,7 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
     private fun cancelAndFinish() {
         if (completed) return
         completed = true
-        PhotoEditorProcessStore.cancel(requestId)
+        ImageProcessStore.cancel(requestId)
         finish()
-    }
-
-    companion object {
-        const val EXTRA_REQUEST_ID = "photo_editor_request_id"
     }
 }

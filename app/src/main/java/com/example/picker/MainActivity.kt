@@ -10,6 +10,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.chat.picker.api.CropOutputFormat
+import com.chat.picker.api.ImageProcessStore
 import com.chat.picker.api.PickIt
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaFilter
@@ -159,14 +160,7 @@ class MainActivity : AppCompatActivity() {
                 .grid(true)
                 .spanCount(4)
                 .imageEdit()
-                .imageEditProcessor { activity, items, _, callback ->
-                    val requestId = PhotoEditorProcessStore.put(items, callback)
-                    activity.startActivity(
-                        Intent(activity, PhotoEditorDemoActivity::class.java).apply {
-                            putExtra(PhotoEditorDemoActivity.EXTRA_REQUEST_ID, requestId)
-                        }
-                    )
-                }
+                .imageEditProcessor(ImageProcessStore.activityProcessor(PhotoEditorDemoActivity::class.java))
                 .start { render(it) }
         }
 
