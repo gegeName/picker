@@ -39,6 +39,7 @@ internal class CropImageView @JvmOverloads constructor(
     private var transformInProgress = false
     private var activeExportSnapshots = 0
     private val recycleAfterExport = ArrayList<Bitmap>()
+    private var editedSinceSave = false
 
     override val cropRect = RectF()
     override val viewWidth: Int
@@ -67,6 +68,7 @@ internal class CropImageView @JvmOverloads constructor(
                 bitmap = bmp
                 toolHelper.reset()
                 initialized = false
+                clearEditedState()
                 if (initialTool != null) toolHelper.select(initialTool)
                 requestLayout()
                 invalidate()
@@ -104,6 +106,7 @@ internal class CropImageView @JvmOverloads constructor(
                     bitmap = rotated
                     if (rotated !== old) recycleBitmapWhenSafe(old)
                     initialized = false
+                    markEdited()
                     invalidate()
                 }
             }
@@ -117,6 +120,7 @@ internal class CropImageView @JvmOverloads constructor(
     override fun flipImageHorizontal() {
         imageMatrix.postScale(-1f, 1f, width / 2f, height / 2f)
         if (toolHelper.isCropVisible) ensureImageCoversCrop()
+        markEdited()
         invalidate()
     }
 
@@ -127,6 +131,7 @@ internal class CropImageView @JvmOverloads constructor(
     override fun flipImageVertical() {
         imageMatrix.postScale(1f, -1f, width / 2f, height / 2f)
         if (toolHelper.isCropVisible) ensureImageCoversCrop()
+        markEdited()
         invalidate()
     }
 
@@ -136,6 +141,7 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun resetImageState() {
         initialized = false
+        clearEditedState()
         invalidate()
     }
 
@@ -175,6 +181,12 @@ internal class CropImageView @JvmOverloads constructor(
 
     fun setTextColor(color: Int) {
         toolHelper.setTextColor(color)
+    }
+
+    fun hasUnsavedEdits(): Boolean = editedSinceSave
+
+    fun clearEditedState() {
+        editedSinceSave = false
     }
 
     fun crop(): Bitmap? {
@@ -358,6 +370,7 @@ internal class CropImageView @JvmOverloads constructor(
         constrainCropToView(rect, allowShrink = false)
         cropRect.set(rect)
         ensureImageCoversCrop()
+        markEdited()
     }
 
     override fun resizeCrop(handle: CropImageToolHelper.Handle, dx: Float, dy: Float) {
@@ -396,6 +409,7 @@ internal class CropImageView @JvmOverloads constructor(
         constrainCropToView(rect, allowShrink = true)
         cropRect.set(rect)
         ensureImageCoversCrop()
+        markEdited()
     }
 
     private fun fixAspect(rect: RectF, handle: CropImageToolHelper.Handle) {
@@ -453,10 +467,16 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun translateImage(dx: Float, dy: Float) {
         imageMatrix.postTranslate(dx, dy)
+        markEdited()
     }
 
     override fun scaleImage(scale: Float, px: Float, py: Float) {
         imageMatrix.postScale(scale, scale, px, py)
+        markEdited()
+    }
+
+    override fun markEdited() {
+        editedSinceSave = true
     }
 
     private fun constrainCropToImage(rect: RectF) {

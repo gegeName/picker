@@ -43,6 +43,7 @@ internal class CropImageToolHelper(
         fun flipImageHorizontal()
         fun flipImageVertical()
         fun resetImageState()
+        fun markEdited()
     }
 
     private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x99000000.toInt() }
@@ -161,6 +162,7 @@ internal class CropImageToolHelper(
         texts.add(item)
         editRefs.add(EditRef.Text(item))
         selectedTextIndex = texts.lastIndex
+        host.markEdited()
         host.invalidateView()
     }
 
@@ -175,13 +177,16 @@ internal class CropImageToolHelper(
             editRefs.removeAll { it is EditRef.Text && it.item === item }
             texts.removeAt(index)
             selectedTextIndex = -1
+            host.markEdited()
             host.invalidateView()
             return
         }
+        if (item.text == clean) return
         item.text = clean
         fitTextRectToContent(item, rect.centerX(), rect.centerY())
         selectedTextIndex = index.coerceAtMost(texts.lastIndex)
         currentTextColor = item.color
+        host.markEdited()
         host.invalidateView()
     }
 
@@ -204,7 +209,11 @@ internal class CropImageToolHelper(
 
     fun setTextColor(color: Int) {
         currentTextColor = color
-        texts.getOrNull(selectedTextIndex)?.color = color
+        val item = texts.getOrNull(selectedTextIndex)
+        if (item != null && item.color != color) {
+            item.color = color
+            host.markEdited()
+        }
         host.invalidateView()
     }
 
@@ -774,6 +783,7 @@ internal class CropImageToolHelper(
                     val stroke = DrawStroke(activePath!!, Paint(brushPaint), nextEditOrder++)
                     strokes.add(stroke)
                     editRefs.add(EditRef.Stroke(stroke))
+                    host.markEdited()
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -809,6 +819,7 @@ internal class CropImageToolHelper(
                     val stroke = EraserStroke(activePath!!, nextEditOrder++)
                     eraserStrokes.add(stroke)
                     editRefs.add(EditRef.Eraser(stroke))
+                    host.markEdited()
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -880,6 +891,7 @@ internal class CropImageToolHelper(
                         selectedTextIndex = -1
                         mode = TextMode.NONE
                         host.requestDisallowInterceptTouch(false)
+                        host.markEdited()
                         host.invalidateView()
                         return true
                     }
@@ -947,6 +959,7 @@ internal class CropImageToolHelper(
         private fun moveText(item: TextItem, dx: Float, dy: Float) {
             item.rect.offset(dx, dy)
             constrainRectToImage(item.rect)
+            host.markEdited()
         }
 
         private fun resizeText(item: TextItem, handle: Handle, dx: Float, dy: Float) {
@@ -988,6 +1001,7 @@ internal class CropImageToolHelper(
             }
             constrainRectToImage(item.rect)
             resizeTextToRect(item, handle)
+            host.markEdited()
         }
     }
 
@@ -1030,6 +1044,7 @@ internal class CropImageToolHelper(
             val point = Point(x, y, nextEditOrder++)
             mosaicPoints.add(point)
             editRefs.add(EditRef.Mosaic(point))
+            host.markEdited()
         }
     }
 

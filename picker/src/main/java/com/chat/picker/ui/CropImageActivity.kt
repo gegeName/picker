@@ -217,6 +217,11 @@ internal class CropImageActivity : AppCompatActivity() {
 
     private fun switchToImage(selectedIndex: Int) {
         if (saveInProgress || selectedIndex == index || selectedIndex !in sources.indices) return
+        if (!cropView.hasUnsavedEdits()) {
+            index = selectedIndex
+            loadCurrent()
+            return
+        }
         saveCurrentAsync(showToast = false) { entity ->
             if (entity == null) return@saveCurrentAsync
             index = selectedIndex
@@ -275,6 +280,7 @@ internal class CropImageActivity : AppCompatActivity() {
                 setSaving(false)
                 if (entity != null && saveIndex in edited.indices) {
                     edited[saveIndex] = entity
+                    cropView.clearEditedState()
                     updateGallerySelection()
                     if (showToast) Toast.makeText(this, getString(R.string.picker_done), Toast.LENGTH_SHORT).show()
                 } else if (failedMessage != null) {
@@ -288,6 +294,10 @@ internal class CropImageActivity : AppCompatActivity() {
     private fun finishAll() {
         textInputDialog.dismiss()
         if (saveInProgress) return
+        if (imageEditMode && !cropView.hasUnsavedEdits()) {
+            deliverAll()
+            return
+        }
         saveCurrentAsync(showToast = false) {
             deliverAll()
         }
