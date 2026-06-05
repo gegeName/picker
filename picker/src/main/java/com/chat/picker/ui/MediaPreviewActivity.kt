@@ -107,6 +107,7 @@ class MediaPreviewActivity : AppCompatActivity() {
             refreshFor(pager.currentItem)
         }
         confirm.setOnClickListener {
+            if (Selection.selected.isEmpty()) return@setOnClickListener
             setResult(RESULT_CONFIRMED)
             finishWithoutAnimation()
         }
@@ -132,7 +133,10 @@ class MediaPreviewActivity : AppCompatActivity() {
             check.text = ""
             check.setBackgroundResource(R.drawable.picker_check_unselected)
         }
-        confirm.text = getString(R.string.picker_done_count, Selection.selected.size, maxCount)
+        val selectedCount = Selection.selected.size
+        confirm.text = getString(R.string.picker_done_count, selectedCount, maxCount)
+        confirm.isEnabled = selectedCount > 0
+        confirm.alpha = if (selectedCount > 0) 1f else 0.55f
     }
 
     override fun onPause() {

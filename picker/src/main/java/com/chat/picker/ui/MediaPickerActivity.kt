@@ -627,6 +627,10 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun finishWithResult() {
         val list = Selection.selected.toList()
+        if (list.isEmpty()) {
+            updateConfirmButton()
+            return
+        }
         if (shouldCrop(list)) {
             openCrop(list)
             return
