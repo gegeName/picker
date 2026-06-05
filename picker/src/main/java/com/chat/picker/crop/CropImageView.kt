@@ -134,6 +134,10 @@ internal class CropImageView @JvmOverloads constructor(
         toolHelper.setBrushColor(color)
     }
 
+    fun setBrushSize(sizeDp: Float) {
+        toolHelper.setBrushSize(sizeDp)
+    }
+
     fun setTextColor(color: Int) {
         toolHelper.setTextColor(color)
     }

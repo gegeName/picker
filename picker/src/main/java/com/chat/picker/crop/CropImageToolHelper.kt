@@ -81,7 +81,7 @@ internal class CropImageToolHelper(
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
-        strokeWidth = host.dp(5f)
+        strokeWidth = host.dp(DEFAULT_BRUSH_SIZE_DP)
     }
     private val mosaicPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xCCBDBDBD.toInt()
@@ -192,6 +192,10 @@ internal class CropImageToolHelper(
 
     fun setBrushColor(color: Int) {
         brushPaint.color = color
+    }
+
+    fun setBrushSize(sizeDp: Float) {
+        brushPaint.strokeWidth = host.dp(sizeDp.coerceIn(MIN_BRUSH_SIZE_DP, MAX_BRUSH_SIZE_DP))
     }
 
     fun setTextColor(color: Int) {
@@ -1026,4 +1030,10 @@ internal class CropImageToolHelper(
         var color: Int,
         val order: Int,
     )
+
+    companion object {
+        const val DEFAULT_BRUSH_SIZE_DP = 5f
+        const val MIN_BRUSH_SIZE_DP = 1f
+        const val MAX_BRUSH_SIZE_DP = 50f
+    }
 }

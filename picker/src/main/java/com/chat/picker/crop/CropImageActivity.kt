@@ -27,6 +27,7 @@ internal class CropImageActivity : AppCompatActivity() {
     private var sources: List<MediaEntity> = emptyList()
     private val edited = ArrayList<MediaEntity?>()
     private var brushColor = Color.RED
+    private var brushSizeDp = CropImageToolHelper.DEFAULT_BRUSH_SIZE_DP
     private var textColor = Color.WHITE
     private var imageEditMode = false
     private var index = 0
@@ -88,8 +89,17 @@ internal class CropImageActivity : AppCompatActivity() {
         }
         val brushColorView = findViewById<TextView>(R.id.crop_brush_color)
         colorPicker.applyColorCircle(brushColorView, brushColor)
+        cropView.setBrushSize(brushSizeDp)
         brushColorView.setOnClickListener {
-            colorPicker.show(R.string.picker_crop_brush, brushColor) { color ->
+            colorPicker.show(
+                titleRes = R.string.picker_crop_brush,
+                initialColor = brushColor,
+                initialBrushSizeDp = brushSizeDp,
+                onBrushSizeSelected = { sizeDp ->
+                    brushSizeDp = sizeDp
+                    cropView.setBrushSize(sizeDp)
+                },
+            ) { color ->
                 brushColor = color
                 cropView.setBrushColor(color)
                 colorPicker.applyColorCircle(brushColorView, color)
@@ -118,6 +128,9 @@ internal class CropImageActivity : AppCompatActivity() {
         val item = edited.getOrNull(index) ?: sources.getOrNull(index) ?: return
         val initialTool = if (imageEditMode) null else CropImageToolHelper.Tool.CROP
         cropView.setImageUri(item.uri, cfg, initialTool)
+        cropView.setBrushColor(brushColor)
+        cropView.setBrushSize(brushSizeDp)
+        cropView.setTextColor(textColor)
         toolBarController.select(initialTool)
         title.text = "${getString(R.string.picker_crop_title)} ${index + 1}/${sources.size}"
         updateGallerySelection()

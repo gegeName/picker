@@ -26,6 +26,8 @@ internal class CropColorPickerDialog(
     fun show(
         titleRes: Int,
         initialColor: Int,
+        initialBrushSizeDp: Float? = null,
+        onBrushSizeSelected: ((Float) -> Unit)? = null,
         onColorSelected: (Int) -> Unit,
     ) {
         val colors = intArrayOf(
@@ -117,6 +119,10 @@ internal class CropColorPickerDialog(
         var redSeek: SeekBar? = null
         var greenSeek: SeekBar? = null
         var blueSeek: SeekBar? = null
+        var selectedBrushSizeDp = initialBrushSizeDp?.coerceIn(
+            CropImageToolHelper.MIN_BRUSH_SIZE_DP,
+            CropImageToolHelper.MAX_BRUSH_SIZE_DP,
+        )
 
         fun updateHexInput() {
             val hex = hexString(selectedColor)
@@ -189,6 +195,14 @@ internal class CropColorPickerDialog(
             override fun afterTextChanged(s: Editable?) = Unit
         })
 
+        val brushSizeDp = selectedBrushSizeDp
+        if (brushSizeDp != null) {
+            content.addView(sectionLabel("画笔大小"))
+            addBrushSizeSeek(content, brushSizeDp) { sizeDp ->
+                selectedBrushSizeDp = sizeDp
+            }
+        }
+
         val buttons = buttonRow()
         content.addView(buttons.row)
         val dialog = AlertDialog.Builder(activity, R.style.PickerTextDialogTheme)
@@ -202,6 +216,7 @@ internal class CropColorPickerDialog(
                 return@setOnClickListener
             }
             onColorSelected(inputColor)
+            selectedBrushSizeDp?.let { onBrushSizeSelected?.invoke(it) }
             dialog.dismiss()
         }
         dialog.setCanceledOnTouchOutside(false)
@@ -283,6 +298,41 @@ internal class CropColorPickerDialog(
             })
         }
         row.addView(text, LinearLayout.LayoutParams(dp(48f).toInt(), dp(40f).toInt()))
+        row.addView(seek, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        parent.addView(row)
+        return seek
+    }
+
+    private fun addBrushSizeSeek(
+        parent: LinearLayout,
+        valueDp: Float,
+        onChanged: (Float) -> Unit,
+    ): SeekBar {
+        val row = LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val text = TextView(activity).apply {
+            text = "画笔大小 ${valueDp.toInt()}"
+            setTextColor(0xFFEDEDED.toInt())
+            textSize = 13f
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val seek = SeekBar(activity).apply {
+            max = (CropImageToolHelper.MAX_BRUSH_SIZE_DP - CropImageToolHelper.MIN_BRUSH_SIZE_DP).toInt()
+            progress = (valueDp - CropImageToolHelper.MIN_BRUSH_SIZE_DP).toInt()
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val sizeDp = CropImageToolHelper.MIN_BRUSH_SIZE_DP + progress
+                    text.text = "画笔大小 ${sizeDp.toInt()}"
+                    onChanged(sizeDp)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        row.addView(text, LinearLayout.LayoutParams(dp(104f).toInt(), dp(40f).toInt()))
         row.addView(seek, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         parent.addView(row)
         return seek
