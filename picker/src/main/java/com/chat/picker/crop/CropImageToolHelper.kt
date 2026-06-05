@@ -4,9 +4,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import com.chat.picker.api.CropConfig
@@ -95,7 +99,7 @@ internal class CropImageToolHelper(
         strokeWidth = host.dp(36f)
         xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR)
     }
-    private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         textSize = host.dp(26f)
         setShadowLayer(host.dp(2f), 0f, host.dp(1f), Color.BLACK)
@@ -202,10 +206,19 @@ internal class CropImageToolHelper(
 
     fun draw(canvas: Canvas) {
         drawEdits(canvas)
-        handlers[currentTool]?.drawOverlay(canvas)
+        val handler = handlers[currentTool] ?: return
+        if (currentTool == Tool.CROP) {
+            handler.drawOverlay(canvas)
+        } else {
+            val saveCount = saveAndClipToImage(canvas) ?: return
+            handler.drawOverlay(canvas)
+            canvas.restoreToCount(saveCount)
+        }
     }
 
     fun drawEdits(canvas: Canvas) {
+        val bounds = host.imageDisplayBounds()
+        if (bounds.isEmpty) return
         val saveCount = canvas.saveLayer(
             0f,
             0f,
@@ -213,6 +226,7 @@ internal class CropImageToolHelper(
             host.viewHeight.toFloat(),
             null,
         )
+        canvas.clipRect(bounds)
         val block = host.dp(18f)
         for (order in 0 until nextEditOrder) {
             strokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
@@ -231,14 +245,39 @@ internal class CropImageToolHelper(
                 if (it.order == order) {
                     textPaint.color = it.color
                     textPaint.textSize = it.textSize
-                    val metrics = textPaint.fontMetrics
-                    val baseline = it.rect.centerY() - (metrics.ascent + metrics.descent) / 2f
-                    canvas.drawText(it.text, it.rect.left + textPadding(), baseline, textPaint)
+                    val layout = textLayoutFor(it)
+                    val padding = textPadding()
+                    val textSaveCount = canvas.save()
+                    canvas.translate(it.rect.left + padding, it.rect.top + padding)
+                    layout.draw(canvas)
+                    canvas.restoreToCount(textSaveCount)
                 }
             }
             eraserStrokes.forEach { if (it.order == order) canvas.drawPath(it.path, eraserDrawPaint) }
         }
         canvas.restoreToCount(saveCount)
+    }
+
+    private fun saveAndClipToImage(canvas: Canvas): Int? {
+        val bounds = host.imageDisplayBounds()
+        if (bounds.isEmpty) return null
+        val saveCount = canvas.save()
+        canvas.clipRect(bounds)
+        return saveCount
+    }
+
+    private fun isPointInsideImage(x: Float, y: Float): Boolean {
+        val bounds = host.imageDisplayBounds()
+        return !bounds.isEmpty && bounds.contains(x, y)
+    }
+
+    private fun clampPointToImage(x: Float, y: Float): PointF? {
+        val bounds = host.imageDisplayBounds()
+        if (bounds.isEmpty) return null
+        return PointF(
+            x.coerceIn(bounds.left, bounds.right),
+            y.coerceIn(bounds.top, bounds.bottom),
+        )
     }
 
     private fun clearEdits() {
@@ -254,15 +293,19 @@ internal class CropImageToolHelper(
         val rect = textRectFor(text, textSize, x, y)
         constrainRectToImage(rect)
         return TextItem(text, rect, textSize, currentTextColor, nextEditOrder++).also {
-            resizeTextToRect(it)
+            reflowTextRectToContent(it)
         }
     }
 
     private fun textRectFor(text: String, textSize: Float, centerX: Float, centerY: Float): RectF {
         textPaint.textSize = textSize
         val padding = textPadding()
-        val width = textPaint.measureText(text) + padding * 2f
-        val height = textSize * 1.45f + padding * 2f
+        val maxWidth = maxTextBoxWidth()
+        val minWidth = min(host.dp(64f), maxWidth).coerceAtLeast(padding * 2f + 1f)
+        val naturalWidth = longestTextLineWidth(text).coerceAtLeast(1f) + padding * 2f
+        val width = naturalWidth.coerceIn(minWidth, maxWidth)
+        val layout = textLayoutFor(text, textSize, width - padding * 2f)
+        val height = layout.height.toFloat() + padding * 2f
         return RectF(
             centerX - width / 2f,
             centerY - height / 2f,
@@ -271,21 +314,111 @@ internal class CropImageToolHelper(
         )
     }
 
-    private fun resizeTextToRect(item: TextItem) {
+    private fun resizeTextToRect(item: TextItem, anchor: Handle = Handle.NONE) {
         val padding = textPadding()
-        textPaint.textSize = 1f
-        val baseWidth = textPaint.measureText(item.text).coerceAtLeast(1f)
-        val byWidth = (item.rect.width() - padding * 2f).coerceAtLeast(1f) / baseWidth
-        val byHeight = (item.rect.height() - padding * 2f).coerceAtLeast(1f) / 1.45f
-        item.textSize = min(byWidth, byHeight).coerceIn(host.dp(12f), host.dp(96f))
+        val contentWidth = (item.rect.width() - padding * 2f).coerceAtLeast(1f)
+        val targetHeight = (item.rect.height() - padding * 2f).coerceAtLeast(1f)
+        val minSize = host.dp(12f)
+        val maxSize = host.dp(96f)
+        var low = minSize
+        var high = maxSize
+        repeat(14) {
+            val mid = (low + high) / 2f
+            val height = textLayoutFor(item.text, mid, contentWidth).height.toFloat()
+            if (height <= targetHeight) {
+                low = mid
+            } else {
+                high = mid
+            }
+        }
+        item.textSize = low.coerceIn(minSize, maxSize)
+        reflowTextRectToContent(item, anchor)
     }
 
     private fun fitTextRectToContent(item: TextItem, centerX: Float, centerY: Float) {
         item.rect.set(textRectFor(item.text, item.textSize, centerX, centerY))
         constrainRectToImage(item.rect)
+        reflowTextRectToContent(item)
     }
 
     private fun textPadding(): Float = host.dp(6f)
+
+    private fun maxTextBoxWidth(): Float {
+        val bounds = host.imageDisplayBounds()
+        val available = if (bounds.isEmpty) host.viewWidth.toFloat() else bounds.width()
+        return available.coerceAtLeast(host.dp(64f))
+    }
+
+    private fun longestTextLineWidth(text: String): Float {
+        return text.lines().maxOfOrNull { line ->
+            textPaint.measureText(line.ifEmpty { " " })
+        } ?: textPaint.measureText(text)
+    }
+
+    private fun textLayoutFor(item: TextItem): StaticLayout {
+        val padding = textPadding()
+        return textLayoutFor(item.text, item.textSize, item.rect.width() - padding * 2f)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun textLayoutFor(text: String, textSize: Float, contentWidth: Float): StaticLayout {
+        textPaint.textSize = textSize
+        val width = contentWidth.coerceAtLeast(1f).toInt().coerceAtLeast(1)
+        return StaticLayout(
+            text,
+            textPaint,
+            width,
+            Layout.Alignment.ALIGN_NORMAL,
+            1.0f,
+            0.0f,
+            false,
+        )
+    }
+
+    private fun reflowTextRectToContent(item: TextItem, anchor: Handle = Handle.NONE) {
+        val old = RectF(item.rect)
+        val padding = textPadding()
+        val width = item.rect.width()
+            .coerceAtLeast(padding * 2f + 1f)
+            .coerceAtMost(maxTextBoxWidth())
+        val height = textLayoutFor(item.text, item.textSize, width - padding * 2f).height +
+            padding * 2f
+        when (anchor) {
+            Handle.LEFT_TOP -> {
+                item.rect.left = old.right - width
+                item.rect.right = old.right
+                item.rect.top = old.bottom - height
+                item.rect.bottom = old.bottom
+            }
+            Handle.RIGHT_TOP -> {
+                item.rect.left = old.left
+                item.rect.right = old.left + width
+                item.rect.top = old.bottom - height
+                item.rect.bottom = old.bottom
+            }
+            Handle.LEFT_BOTTOM -> {
+                item.rect.left = old.right - width
+                item.rect.right = old.right
+                item.rect.top = old.top
+                item.rect.bottom = old.top + height
+            }
+            Handle.RIGHT_BOTTOM -> {
+                item.rect.left = old.left
+                item.rect.right = old.left + width
+                item.rect.top = old.top
+                item.rect.bottom = old.top + height
+            }
+            else -> {
+                val cx = old.centerX()
+                val cy = old.centerY()
+                item.rect.left = cx - width / 2f
+                item.rect.right = cx + width / 2f
+                item.rect.top = cy - height / 2f
+                item.rect.bottom = cy + height / 2f
+            }
+        }
+        constrainRectToImage(item.rect)
+    }
 
     private fun constrainRectToImage(rect: RectF) {
         val bounds = host.imageDisplayBounds()
@@ -587,13 +720,16 @@ internal class CropImageToolHelper(
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (!isPointInsideImage(event.x, event.y)) return true
                     host.requestDisallowInterceptTouch(true)
-                    activePath = Path().apply { moveTo(event.x, event.y) }
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    activePath = Path().apply { moveTo(point.x, point.y) }
                     strokes.add(DrawStroke(activePath!!, Paint(brushPaint), nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    activePath?.lineTo(event.x, event.y)
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    activePath?.lineTo(point.x, point.y)
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -615,17 +751,20 @@ internal class CropImageToolHelper(
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (!isPointInsideImage(event.x, event.y)) return true
                     host.requestDisallowInterceptTouch(true)
-                    lastEraserX = event.x
-                    lastEraserY = event.y
-                    activePath = Path().apply { moveTo(event.x, event.y) }
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    lastEraserX = point.x
+                    lastEraserY = point.y
+                    activePath = Path().apply { moveTo(point.x, point.y) }
                     eraserStrokes.add(EraserStroke(activePath!!, nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    lastEraserX = event.x
-                    lastEraserY = event.y
-                    activePath?.lineTo(event.x, event.y)
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    lastEraserX = point.x
+                    lastEraserY = point.y
+                    activePath?.lineTo(point.x, point.y)
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -796,7 +935,7 @@ internal class CropImageToolHelper(
                 }
             }
             constrainRectToImage(item.rect)
-            resizeTextToRect(item)
+            resizeTextToRect(item, handle)
         }
     }
 
@@ -804,12 +943,15 @@ internal class CropImageToolHelper(
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    if (!isPointInsideImage(event.x, event.y)) return true
                     host.requestDisallowInterceptTouch(true)
-                    mosaicPoints.add(Point(event.x, event.y, nextEditOrder++))
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    mosaicPoints.add(Point(event.x, event.y, nextEditOrder++))
+                    val point = clampPointToImage(event.x, event.y) ?: return true
+                    mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
