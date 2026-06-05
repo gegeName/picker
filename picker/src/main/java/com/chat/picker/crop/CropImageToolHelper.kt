@@ -262,6 +262,32 @@ internal class CropImageToolHelper(
         canvas.restoreToCount(saveCount)
     }
 
+    fun createEditSnapshot(imageBounds: RectF): EditSnapshot {
+        return EditSnapshot(
+            imageBounds = RectF(imageBounds),
+            viewWidth = host.viewWidth.toFloat(),
+            viewHeight = host.viewHeight.toFloat(),
+            blockSize = host.dp(18f),
+            textPadding = textPadding(),
+            textShadowRadius = host.dp(2f),
+            textShadowDy = host.dp(1f),
+            nextEditOrder = nextEditOrder,
+            strokes = strokes.map { StrokeSnapshot(Path(it.path), Paint(it.paint), it.order) },
+            mosaicPoints = mosaicPoints.map { MosaicPointSnapshot(it.x, it.y, it.order) },
+            mosaicPaint = Paint(mosaicPaint),
+            texts = texts.map {
+                TextSnapshot(
+                    text = it.text,
+                    rect = RectF(it.rect),
+                    textSize = it.textSize,
+                    color = it.color,
+                    order = it.order,
+                )
+            },
+            eraserStrokes = eraserStrokes.map { StrokeSnapshot(Path(it.path), Paint(eraserDrawPaint), it.order) },
+        )
+    }
+
     private fun saveAndClipToImage(canvas: Canvas): Int? {
         val bounds = host.imageDisplayBounds()
         if (bounds.isEmpty) return null
@@ -944,6 +970,14 @@ internal class CropImageToolHelper(
     }
 
     private inner class MosaicHandler : ToolHandler {
+        private var lastX = 0f
+        private var lastY = 0f
+
+        override fun onReset() {
+            lastX = 0f
+            lastY = 0f
+        }
+
         override fun onTouchEvent(event: MotionEvent): Boolean {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -951,11 +985,16 @@ internal class CropImageToolHelper(
                     host.requestDisallowInterceptTouch(true)
                     val point = clampPointToImage(event.x, event.y) ?: return true
                     mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
+                    lastX = point.x
+                    lastY = point.y
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val point = clampPointToImage(event.x, event.y) ?: return true
+                    if (hypot(point.x - lastX, point.y - lastY) < host.dp(6f)) return true
                     mosaicPoints.add(Point(point.x, point.y, nextEditOrder++))
+                    lastX = point.x
+                    lastY = point.y
                     host.invalidateView()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1031,9 +1070,107 @@ internal class CropImageToolHelper(
         val order: Int,
     )
 
+    data class EditSnapshot(
+        val imageBounds: RectF,
+        val viewWidth: Float,
+        val viewHeight: Float,
+        val blockSize: Float,
+        val textPadding: Float,
+        val textShadowRadius: Float,
+        val textShadowDy: Float,
+        val nextEditOrder: Int,
+        val strokes: List<StrokeSnapshot>,
+        val mosaicPoints: List<MosaicPointSnapshot>,
+        val mosaicPaint: Paint,
+        val texts: List<TextSnapshot>,
+        val eraserStrokes: List<StrokeSnapshot>,
+    )
+
+    data class StrokeSnapshot(
+        val path: Path,
+        val paint: Paint,
+        val order: Int,
+    )
+
+    data class MosaicPointSnapshot(
+        val x: Float,
+        val y: Float,
+        val order: Int,
+    )
+
+    data class TextSnapshot(
+        val text: String,
+        val rect: RectF,
+        val textSize: Float,
+        val color: Int,
+        val order: Int,
+    )
+
     companion object {
         const val DEFAULT_BRUSH_SIZE_DP = 5f
         const val MIN_BRUSH_SIZE_DP = 1f
         const val MAX_BRUSH_SIZE_DP = 50f
+
+        fun drawEditSnapshot(canvas: Canvas, snapshot: EditSnapshot) {
+            if (snapshot.imageBounds.isEmpty) return
+            val saveCount = canvas.saveLayer(
+                0f,
+                0f,
+                snapshot.viewWidth,
+                snapshot.viewHeight,
+                null,
+            )
+            canvas.clipRect(snapshot.imageBounds)
+            for (order in 0 until snapshot.nextEditOrder) {
+                snapshot.strokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
+                snapshot.mosaicPoints.forEach {
+                    if (it.order == order) {
+                        val block = snapshot.blockSize
+                        canvas.drawRect(
+                            it.x - block / 2f,
+                            it.y - block / 2f,
+                            it.x + block / 2f,
+                            it.y + block / 2f,
+                            snapshot.mosaicPaint,
+                        )
+                    }
+                }
+                snapshot.texts.forEach {
+                    if (it.order == order) drawTextSnapshot(canvas, it, snapshot)
+                }
+                snapshot.eraserStrokes.forEach { if (it.order == order) canvas.drawPath(it.path, it.paint) }
+            }
+            canvas.restoreToCount(saveCount)
+        }
+
+        private fun drawTextSnapshot(canvas: Canvas, item: TextSnapshot, snapshot: EditSnapshot) {
+            val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = item.color
+                textSize = item.textSize
+                setShadowLayer(snapshot.textShadowRadius, 0f, snapshot.textShadowDy, Color.BLACK)
+            }
+            val width = (item.rect.width() - snapshot.textPadding * 2f)
+                .coerceAtLeast(1f)
+                .toInt()
+                .coerceAtLeast(1)
+            val layout = textLayoutForSnapshot(item.text, paint, width)
+            val textSaveCount = canvas.save()
+            canvas.translate(item.rect.left + snapshot.textPadding, item.rect.top + snapshot.textPadding)
+            layout.draw(canvas)
+            canvas.restoreToCount(textSaveCount)
+        }
+
+        @Suppress("DEPRECATION")
+        private fun textLayoutForSnapshot(text: String, paint: TextPaint, width: Int): StaticLayout {
+            return StaticLayout(
+                text,
+                paint,
+                width,
+                Layout.Alignment.ALIGN_NORMAL,
+                1.0f,
+                0.0f,
+                false,
+            )
+        }
     }
 }

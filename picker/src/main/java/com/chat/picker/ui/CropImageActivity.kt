@@ -19,6 +19,8 @@ import com.chat.picker.crop.CropImageView
 import com.chat.picker.crop.CropToolBarController
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.util.EdgeToEdge
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 internal class CropImageActivity : AppCompatActivity() {
 
@@ -35,6 +37,8 @@ internal class CropImageActivity : AppCompatActivity() {
     private var brushSizeDp = CropImageToolHelper.DEFAULT_BRUSH_SIZE_DP
     private var textColor = Color.WHITE
     private var imageEditMode = false
+    private var saveInProgress = false
+    private val saveExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var index = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -120,7 +124,7 @@ internal class CropImageActivity : AppCompatActivity() {
             }
         }
         findViewById<TextView>(R.id.crop_done_one).setOnClickListener {
-            saveCurrent(showToast = true)
+            saveCurrentAsync(showToast = true) { }
         }
         findViewById<TextView>(R.id.crop_done).setOnClickListener {
             finishAll()
@@ -212,43 +216,84 @@ internal class CropImageActivity : AppCompatActivity() {
     }
 
     private fun switchToImage(selectedIndex: Int) {
-        if (selectedIndex == index || selectedIndex !in sources.indices) return
-        if (saveCurrent(showToast = false) == null) return
-        index = selectedIndex
-        loadCurrent()
+        if (saveInProgress || selectedIndex == index || selectedIndex !in sources.indices) return
+        saveCurrentAsync(showToast = false) { entity ->
+            if (entity == null) return@saveCurrentAsync
+            index = selectedIndex
+            loadCurrent()
+        }
     }
 
     private fun updateGallerySelection() {
         galleryController.updateSelection(index)
     }
 
-    private fun saveCurrent(showToast: Boolean): MediaEntity? {
+    private fun saveCurrentAsync(
+        showToast: Boolean,
+        onComplete: (MediaEntity?) -> Unit,
+    ) {
+        if (saveInProgress) return
         textInputDialog.dismiss()
-        val cfg = MediaSelector.pendingConfig?.cropConfig ?: return null
-        val cropped = cropView.crop()
-        if (cropped == null) {
-            Toast.makeText(this, getString(R.string.picker_crop_failed), Toast.LENGTH_SHORT).show()
-            return null
+        val cfg = MediaSelector.pendingConfig?.cropConfig ?: run {
+            onComplete(null)
+            return
         }
-        try {
-            val (file, uri) = CropBitmapUtils.saveToCache(applicationContext, cropped, cfg)
-            val entity = CropBitmapUtils.buildResultEntity(file, uri, cropped, cfg)
-            edited[index] = entity
-            updateGallerySelection()
-            if (showToast) Toast.makeText(this, getString(R.string.picker_done), Toast.LENGTH_SHORT).show()
-            return entity
+        val saveIndex = index
+        setSaving(true)
+        val snapshot = try {
+            cropView.createExportSnapshot()
         } catch (_: Throwable) {
-            Toast.makeText(this, getString(R.string.picker_crop_save_failed), Toast.LENGTH_SHORT)
-                .show()
-            return null
-        } finally {
-            cropped.recycle()
+            null
+        }
+        if (snapshot == null) {
+            setSaving(false)
+            Toast.makeText(this, getString(R.string.picker_crop_failed), Toast.LENGTH_SHORT).show()
+            onComplete(null)
+            return
+        }
+        saveExecutor.execute {
+            var failedMessage: String? = null
+            var entity: MediaEntity? = null
+            var cropped: android.graphics.Bitmap? = null
+            try {
+                cropped = CropImageView.renderExportSnapshot(snapshot)
+                val bitmap = cropped
+                if (bitmap == null) {
+                    failedMessage = getString(R.string.picker_crop_failed)
+                } else {
+                    val (file, uri) = CropBitmapUtils.saveToCache(applicationContext, bitmap, cfg)
+                    entity = CropBitmapUtils.buildResultEntity(file, uri, bitmap, cfg)
+                }
+            } catch (_: Throwable) {
+                failedMessage = getString(R.string.picker_crop_save_failed)
+            } finally {
+                cropped?.recycle()
+                snapshot.release()
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                setSaving(false)
+                if (entity != null && saveIndex in edited.indices) {
+                    edited[saveIndex] = entity
+                    updateGallerySelection()
+                    if (showToast) Toast.makeText(this, getString(R.string.picker_done), Toast.LENGTH_SHORT).show()
+                } else if (failedMessage != null) {
+                    Toast.makeText(this, failedMessage, Toast.LENGTH_SHORT).show()
+                }
+                onComplete(entity)
+            }
         }
     }
 
     private fun finishAll() {
         textInputDialog.dismiss()
-        saveCurrent(showToast = false)
+        if (saveInProgress) return
+        saveCurrentAsync(showToast = false) {
+            deliverAll()
+        }
+    }
+
+    private fun deliverAll() {
         val list = ArrayList<MediaEntity>(sources.size)
         sources.forEachIndexed { i, item ->
             list.add(edited.getOrNull(i) ?: item)
@@ -258,6 +303,38 @@ internal class CropImageActivity : AppCompatActivity() {
             putExtra(EXTRA_RESULT, list.firstOrNull())
         })
         finish()
+    }
+
+    private fun setSaving(saving: Boolean) {
+        saveInProgress = saving
+        cropView.isEnabled = !saving
+        gallery.isEnabled = !saving
+        for (i in 0 until gallery.childCount) {
+            gallery.getChildAt(i).isEnabled = !saving
+        }
+        val controls = intArrayOf(
+            R.id.crop_rotate,
+            R.id.crop_flip_h,
+            R.id.crop_flip_v,
+            R.id.crop_reset,
+            R.id.crop_mode_crop,
+            R.id.crop_brush,
+            R.id.crop_brush_color,
+            R.id.crop_text,
+            R.id.crop_text_color,
+            R.id.crop_mosaic,
+            R.id.crop_eraser,
+        )
+        controls.forEach { id ->
+            findViewById<View>(id)?.isEnabled = !saving
+        }
+        findViewById<TextView>(R.id.crop_done_one).isEnabled = !saving
+        findViewById<TextView>(R.id.crop_done).isEnabled = !saving
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        saveExecutor.shutdownNow()
     }
 
     companion object {

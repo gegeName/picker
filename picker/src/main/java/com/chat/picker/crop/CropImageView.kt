@@ -7,10 +7,15 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import com.chat.picker.api.CropConfig
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 import kotlin.math.min
 
@@ -24,10 +29,16 @@ internal class CropImageView @JvmOverloads constructor(
     private val imageMatrix = Matrix()
     private val imageBounds = RectF()
     private val toolHelper = CropImageToolHelper(this)
+    private val workerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     private var config = CropConfig()
     private var bitmap: Bitmap? = null
     private var initialized = false
+    private var bitmapToken = 0
+    private var transformInProgress = false
+    private var activeExportSnapshots = 0
+    private var recycleAfterExport: Bitmap? = null
 
     override val cropRect = RectF()
     override val viewWidth: Int
@@ -43,11 +54,16 @@ internal class CropImageView @JvmOverloads constructor(
         initialTool: CropImageToolHelper.Tool? = null,
     ) {
         config = cfg
-        Thread {
+        val token = ++bitmapToken
+        workerExecutor.execute {
             val maxSide = max(cfg.maxOutputWidth, cfg.maxOutputHeight)
             val bmp = CropBitmapUtils.decodeForCrop(context.applicationContext, uri, maxSide)
             post {
-                bitmap?.recycle()
+                if (token != bitmapToken) {
+                    bmp?.recycle()
+                    return@post
+                }
+                recycleBitmapWhenSafe(bitmap)
                 bitmap = bmp
                 toolHelper.reset()
                 initialized = false
@@ -55,7 +71,7 @@ internal class CropImageView @JvmOverloads constructor(
                 requestLayout()
                 invalidate()
             }
-        }.start()
+        }
     }
 
     fun rotate90() {
@@ -64,14 +80,33 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun rotateImage90() {
         val old = bitmap ?: return
+        if (transformInProgress) return
+        transformInProgress = true
+        val token = ++bitmapToken
         val matrix = Matrix().apply { postRotate(90f) }
-        try {
-            bitmap = Bitmap.createBitmap(old, 0, 0, old.width, old.height, matrix, true)
-            if (bitmap !== old) old.recycle()
-            initialized = false
-            invalidate()
-        } catch (_: OutOfMemoryError) {
-            System.gc()
+        workerExecutor.execute {
+            val rotated = try {
+                Bitmap.createBitmap(old, 0, 0, old.width, old.height, matrix, true)
+            } catch (_: OutOfMemoryError) {
+                System.gc()
+                null
+            } catch (_: Throwable) {
+                null
+            }
+            post {
+                transformInProgress = false
+                flushPendingRecycleIfSafe()
+                if (token != bitmapToken || bitmap !== old) {
+                    if (rotated !== old) rotated?.recycle()
+                    return@post
+                }
+                if (rotated != null) {
+                    bitmap = rotated
+                    if (rotated !== old) recycleBitmapWhenSafe(old)
+                    initialized = false
+                    invalidate()
+                }
+            }
         }
     }
 
@@ -143,7 +178,18 @@ internal class CropImageView @JvmOverloads constructor(
     }
 
     fun crop(): Bitmap? {
+        val snapshot = createExportSnapshot() ?: return null
+        return try {
+            renderExportSnapshot(snapshot)
+        } finally {
+            snapshot.release()
+        }
+    }
+
+    fun createExportSnapshot(): ExportSnapshot? {
         val bmp = bitmap ?: return null
+        if (width <= 0 || height <= 0) return null
+        if (!initialized) initImageAndCrop(bmp)
         val exportRect = if (toolHelper.isCropVisible) RectF(cropRect) else mappedImageBounds(bmp)
         if (exportRect.width() <= 0f || exportRect.height() <= 0f) return null
         val outputScale = minOf(
@@ -153,20 +199,19 @@ internal class CropImageView @JvmOverloads constructor(
         )
         val outW = (exportRect.width() * outputScale).toInt().coerceAtLeast(1)
         val outH = (exportRect.height() * outputScale).toInt().coerceAtLeast(1)
-        return try {
-            val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(out)
-            canvas.scale(outW / exportRect.width(), outH / exportRect.height())
-            canvas.translate(-exportRect.left, -exportRect.top)
-            canvas.drawBitmap(bmp, imageMatrix, bitmapPaint)
-            toolHelper.drawEdits(canvas)
-            if (toolHelper.isCropVisible && config.isCircle) CropBitmapUtils.makeCircleBitmap(out) else out
-        } catch (_: OutOfMemoryError) {
-            System.gc()
-            null
-        } catch (_: Throwable) {
-            null
-        }
+        val imageDisplayBounds = mappedImageBounds(bmp)
+        val editSnapshot = toolHelper.createEditSnapshot(imageDisplayBounds)
+        activeExportSnapshots++
+        return ExportSnapshot(
+            bitmap = bmp,
+            imageMatrix = Matrix(imageMatrix),
+            exportRect = RectF(exportRect),
+            outW = outW,
+            outH = outH,
+            circle = toolHelper.isCropVisible && config.isCircle,
+            edits = editSnapshot,
+            releaseCallback = ::releaseExportSnapshotOnMain,
+        )
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -179,13 +224,87 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        bitmap?.recycle()
+        bitmapToken++
+        workerExecutor.shutdownNow()
+        val old = bitmap
         bitmap = null
+        recycleBitmapWhenSafe(old)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (bitmap == null || cropRect.isEmpty) return true
+        if (bitmap == null || cropRect.isEmpty || transformInProgress) return true
         return toolHelper.onTouchEvent(event)
+    }
+
+    data class ExportSnapshot(
+        val bitmap: Bitmap,
+        val imageMatrix: Matrix,
+        val exportRect: RectF,
+        val outW: Int,
+        val outH: Int,
+        val circle: Boolean,
+        val edits: CropImageToolHelper.EditSnapshot,
+        private val releaseCallback: () -> Unit,
+    ) {
+        private val released = AtomicBoolean(false)
+
+        fun release() {
+            if (released.compareAndSet(false, true)) releaseCallback()
+        }
+    }
+
+    private fun releaseExportSnapshot() {
+        activeExportSnapshots = (activeExportSnapshots - 1).coerceAtLeast(0)
+        if (activeExportSnapshots == 0) {
+            recycleAfterExport?.recycle()
+            recycleAfterExport = null
+        }
+    }
+
+    private fun releaseExportSnapshotOnMain() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            releaseExportSnapshot()
+        } else {
+            mainHandler.post { releaseExportSnapshot() }
+        }
+    }
+
+    private fun recycleBitmapWhenSafe(value: Bitmap?) {
+        if (value == null) return
+        if (activeExportSnapshots > 0 || transformInProgress) {
+            recycleAfterExport = value
+        } else {
+            value.recycle()
+        }
+    }
+
+    private fun flushPendingRecycleIfSafe() {
+        if (activeExportSnapshots == 0 && !transformInProgress) {
+            recycleAfterExport?.recycle()
+            recycleAfterExport = null
+        }
+    }
+
+    companion object {
+        fun renderExportSnapshot(snapshot: ExportSnapshot): Bitmap? {
+            val exportRect = snapshot.exportRect
+            if (exportRect.width() <= 0f || exportRect.height() <= 0f) return null
+            val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            return try {
+                val out = Bitmap.createBitmap(snapshot.outW, snapshot.outH, Bitmap.Config.ARGB_8888)
+                val canvas = Canvas(out)
+                canvas.scale(snapshot.outW / exportRect.width(), snapshot.outH / exportRect.height())
+                canvas.translate(-exportRect.left, -exportRect.top)
+                canvas.drawBitmap(snapshot.bitmap, snapshot.imageMatrix, bitmapPaint)
+                CropImageToolHelper.drawEditSnapshot(canvas, snapshot.edits)
+                if (snapshot.circle) CropBitmapUtils.makeCircleBitmap(out) else out
+            } catch (_: OutOfMemoryError) {
+                System.gc()
+                null
+            } catch (_: Throwable) {
+                null
+            }
+        }
     }
 
     private fun initImageAndCrop(bmp: Bitmap) {
