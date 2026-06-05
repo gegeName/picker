@@ -141,7 +141,7 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun resetImageState() {
         initialized = false
-        clearEditedState()
+        markEdited()
         invalidate()
     }
 
@@ -185,6 +185,8 @@ internal class CropImageView @JvmOverloads constructor(
 
     fun hasUnsavedEdits(): Boolean = editedSinceSave
 
+    fun isTransformInProgress(): Boolean = transformInProgress
+
     fun clearEditedState() {
         editedSinceSave = false
     }
@@ -200,6 +202,7 @@ internal class CropImageView @JvmOverloads constructor(
 
     fun createExportSnapshot(): ExportSnapshot? {
         val bmp = bitmap ?: return null
+        if (transformInProgress) return null
         if (width <= 0 || height <= 0) return null
         if (!initialized) initImageAndCrop(bmp)
         val exportRect = if (toolHelper.isCropVisible) RectF(cropRect) else mappedImageBounds(bmp)

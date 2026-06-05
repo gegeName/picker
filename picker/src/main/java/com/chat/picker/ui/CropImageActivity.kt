@@ -124,6 +124,7 @@ internal class CropImageActivity : AppCompatActivity() {
             }
         }
         findViewById<TextView>(R.id.crop_done_one).setOnClickListener {
+            if (cropView.isTransformInProgress()) return@setOnClickListener
             saveCurrentAsync(showToast = true) { }
         }
         findViewById<TextView>(R.id.crop_done).setOnClickListener {
@@ -217,6 +218,7 @@ internal class CropImageActivity : AppCompatActivity() {
 
     private fun switchToImage(selectedIndex: Int) {
         if (saveInProgress || selectedIndex == index || selectedIndex !in sources.indices) return
+        if (cropView.isTransformInProgress()) return
         if (!cropView.hasUnsavedEdits()) {
             index = selectedIndex
             loadCurrent()
@@ -238,6 +240,10 @@ internal class CropImageActivity : AppCompatActivity() {
         onComplete: (MediaEntity?) -> Unit,
     ) {
         if (saveInProgress) return
+        if (cropView.isTransformInProgress()) {
+            onComplete(null)
+            return
+        }
         textInputDialog.dismiss()
         val cfg = MediaSelector.pendingConfig?.cropConfig ?: run {
             onComplete(null)
@@ -294,6 +300,7 @@ internal class CropImageActivity : AppCompatActivity() {
     private fun finishAll() {
         textInputDialog.dismiss()
         if (saveInProgress) return
+        if (cropView.isTransformInProgress()) return
         if (imageEditMode && !cropView.hasUnsavedEdits()) {
             deliverAll()
             return
