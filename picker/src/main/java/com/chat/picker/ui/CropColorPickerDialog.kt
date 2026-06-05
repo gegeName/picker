@@ -1,4 +1,4 @@
-package com.chat.picker.crop
+package com.chat.picker.ui
 
 import android.graphics.Color
 import android.graphics.Typeface
@@ -19,6 +19,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.chat.picker.R
+import com.chat.picker.crop.CropImageToolHelper
 
 internal class CropColorPickerDialog(
     private val activity: AppCompatActivity,

@@ -15,7 +15,6 @@ import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
-import com.chat.picker.crop.CropImageActivity
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.DefaultImageEngine
 import com.chat.picker.loader.IImageEngine
@@ -23,6 +22,7 @@ import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaFilter
 import com.chat.picker.model.MediaType
 import com.chat.picker.preview.IOtherPreviewProvider
+import com.chat.picker.ui.CropImageActivity
 import com.chat.picker.ui.MediaPickerActivity
 import com.chat.picker.ui.PermissionHelper
 import com.chat.picker.util.StorageAccess

@@ -1,4 +1,4 @@
-package com.chat.picker.crop
+package com.chat.picker.ui
 
 import android.content.Context
 import android.graphics.Color
