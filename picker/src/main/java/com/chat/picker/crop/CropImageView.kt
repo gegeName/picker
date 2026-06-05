@@ -29,7 +29,7 @@ internal class CropImageView @JvmOverloads constructor(
     private val imageMatrix = Matrix()
     private val imageBounds = RectF()
     private val toolHelper = CropImageToolHelper(this)
-    private val workerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private var workerExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var config = CropConfig()
@@ -55,7 +55,7 @@ internal class CropImageView @JvmOverloads constructor(
     ) {
         config = cfg
         val token = ++bitmapToken
-        workerExecutor.execute {
+        workerExecutor().execute {
             val maxSide = max(cfg.maxOutputWidth, cfg.maxOutputHeight)
             val bmp = CropBitmapUtils.decodeForCrop(context.applicationContext, uri, maxSide)
             post {
@@ -84,7 +84,7 @@ internal class CropImageView @JvmOverloads constructor(
         transformInProgress = true
         val token = ++bitmapToken
         val matrix = Matrix().apply { postRotate(90f) }
-        workerExecutor.execute {
+        workerExecutor().execute {
             val rotated = try {
                 Bitmap.createBitmap(old, 0, 0, old.width, old.height, matrix, true)
             } catch (_: OutOfMemoryError) {
@@ -282,6 +282,13 @@ internal class CropImageView @JvmOverloads constructor(
             recycleAfterExport.forEach { it.recycle() }
             recycleAfterExport.clear()
         }
+    }
+
+    private fun workerExecutor(): ExecutorService {
+        if (workerExecutor.isShutdown || workerExecutor.isTerminated) {
+            workerExecutor = Executors.newSingleThreadExecutor()
+        }
+        return workerExecutor
     }
 
     companion object {
