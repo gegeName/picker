@@ -5,8 +5,10 @@ Android 图片、视频、音频和文件选择器，支持多选、预览、拍
 ## 功能
 
 - 图片、视频、音频、图片+视频、全部文件选择
+- `MediaType.ALL` 不只返回图片、视频、音频，也支持 PPT、Word、Excel、TXT、PDF、ZIP 等其他文件
 - 网格/列表模式、多选/单选、预选回显
 - 图片和视频全屏预览
+- 其他文件可自定义列表封面，也可自定义预览页打开/渲染文档能力
 - 拍照、录视频、列表首位相机入口
 - 图片裁剪：自由比例、固定比例、圆形裁剪、输出尺寸和质量控制
 - 图片编辑：多图编辑、裁剪、画笔、文字、马赛克、颜色和画笔大小
@@ -166,7 +168,7 @@ PickIt.with(this)
 | `MediaType.VIDEO` | 视频 |
 | `MediaType.AUDIO` | 音频 |
 | `MediaType.IMAGE_VIDEO` | 图片和视频混选 |
-| `MediaType.ALL` | 全部文件 |
+| `MediaType.ALL` | 全部文件，不只包含图片、视频、音频，也包含 PPT、Word、Excel、TXT、PDF、ZIP 等其他类型 |
 
 ### 基础选择配置
 
@@ -310,7 +312,7 @@ PickIt.with(this)
 | `IImageEngine.loadThumbnail(view, uri, isVideo)` | 旧版缩略图加载接口 |
 | `IImageEngine.loadOriginal(view, uri, isVideo)` | 旧版原图加载接口 |
 
-接入 Glide、Coil、Picasso 时，实现 `IImageEngine` 即可。音频封面可使用 `MediaEntity.albumArtUri`，其他文件可根据 `mimeType` 或扩展名渲染业务图标。
+接入 Glide、Coil、Picasso 时，实现 `IImageEngine` 即可。音频封面可使用 `MediaEntity.albumArtUri`。当选择 `MediaType.ALL` 时，PPT、Word、Excel、TXT、PDF、ZIP 等其他文件也会进入列表，业务方可以在 `loadThumbnail(view, item)` 中根据 `item.mimeType`、`item.displayName` 或文件扩展名设置特定封面，例如 Word 图标、Excel 图标、PPT 图标、TXT 图标等。
 
 ### 其他文件预览
 
@@ -321,7 +323,14 @@ PickIt.with(this)
 | `IOtherPreviewProvider.bindView(view, item)` | 每次绑定文件数据时调用 |
 | `IOtherPreviewProvider.onViewRecycled(view)` | View 被回收前调用，用于清理下载、渲染任务等 |
 
-适用于 PDF、DOC、XLS、PPT、ZIP 等非图片/视频/音频文件的自定义预览。
+适用于 PDF、DOC/DOCX、XLS/XLSX、PPT/PPTX、TXT、ZIP 等非图片/视频/音频文件的自定义预览。业务方可以把“打开文档”的能力通过 `IOtherPreviewProvider` 给到框架：框架负责在预览页创建和复用容器，业务方在 `bindView` 中根据当前 `MediaEntity` 打开或渲染对应文档，例如加载 PDF、展示 Office 文档预览、显示 TXT 内容，或接入自己的文档预览 SDK。
+
+### 全部文件能力说明
+
+选择 `MediaType.ALL` 时，框架会查询并返回所有符合条件的文件类型，不只限于媒体文件。返回列表中可能同时包含图片、视频、音频、PDF、PPT、Word、Excel、TXT、ZIP 等文件。对于这类“其他文件”，框架提供两层扩展：
+
+- 列表封面扩展：通过 `IImageEngine.loadThumbnail(view, item)` 按 `mimeType` 或扩展名设置不同文档封面。
+- 预览打开扩展：通过 `MediaSelector.setOtherPreviewProvider(provider)` 注册文档预览能力，由框架在预览页自动创建并绑定文档预览 View。
 
 ### 第三方图片裁剪/编辑
 
