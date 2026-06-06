@@ -10,7 +10,7 @@ import com.chat.picker.model.MediaEntity
  * 注册，预览页遇到 doc/xls/ppt/pdf/zip 等"其他文件"会调到这里渲染自定义 View。
  *
  * 生命周期：
- * - [createView] 在 onCreateViewHolder 阶段调一次，按 ViewPager 复用规模决定缓存
+ * - [createView] 在 onCreateViewHolder 阶段调用；不要在这里做具体文件数据加载
  * - [bindView] 每次翻到该项时调一次，已在主线程；网络/磁盘 IO 自行切线程
  * - [onViewRecycled] 在 onViewRecycled 时调，做暂停下载、释放资源等收尾
  */

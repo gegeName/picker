@@ -33,6 +33,8 @@ internal class MediaPreviewAdapter
         private const val TYPE_VIDEO = 2
         private const val TYPE_AUDIO = 3
         private const val TYPE_OTHER = 4
+        private const val TAG_FALLBACK_TITLE = "other_preview_title"
+        private const val TAG_FALLBACK_META = "other_preview_meta"
 
         private val DIFF = object : DiffUtil.ItemCallback<MediaEntity>() {
             override fun areItemsTheSame(oldItem: MediaEntity, newItem: MediaEntity): Boolean =
@@ -328,57 +330,50 @@ internal class MediaPreviewAdapter
         setBackgroundColor(Color.TRANSPARENT)
     }) {
         private val container: FrameLayout = itemView as FrameLayout
-        private var providerView: View? = null
+        private val boundProvider: IOtherPreviewProvider? = MediaSelector.otherPreviewProvider()
+        private val providerView: View? = boundProvider?.createView(parent)?.also { v ->
+            container.addView(
+                v,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+        private val fallbackView: LinearLayout? = if (boundProvider == null) createFallbackView() else null
 
         fun bind(item: MediaEntity) {
-            release()
-            val provider = MediaSelector.otherPreviewProvider()
-            if (provider != null) {
-                val v = provider.createView(container)
-                providerView = v
-                container.addView(
-                    v,
-                    FrameLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                    ),
-                )
+            val provider = boundProvider
+            val v = providerView
+            if (provider != null && v != null) {
                 provider.bindView(v, item)
             } else {
-                val box = LinearLayout(container.context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.CENTER
-                    setPadding(48, 48, 48, 48)
-                }
-                val icon = ImageView(container.context).apply {
-                    setBackgroundColor(Color.parseColor("#555555"))
-                    scaleType = ImageView.ScaleType.CENTER_INSIDE
-                    setPadding(36, 36, 36, 36)
-                    setImageResource(R.drawable.picker_ic_unknown)
-                }
-                val title = TextView(container.context).apply {
-                    gravity = Gravity.CENTER
-                    setTextColor(Color.WHITE)
-                    textSize = 15f
-                    maxLines = 2
-                    text = item.displayName
-                }
-                val meta = TextView(container.context).apply {
-                    gravity = Gravity.CENTER
-                    setTextColor(Color.parseColor("#BBBBBB"))
-                    textSize = 12f
-                    text = buildString {
-                        append(item.mimeType.ifBlank { "unknown" })
-                        append('\n')
-                        append(item.sizeBytes).append(" bytes")
-                    }
-                }
-                box.addView(
-                    icon,
+                fallbackView?.let { updateFallbackView(it, item) }
+            }
+        }
+
+        private fun createFallbackView(): LinearLayout {
+            return LinearLayout(container.context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(48, 48, 48, 48)
+                addView(
+                    ImageView(container.context).apply {
+                        setBackgroundColor(Color.parseColor("#555555"))
+                        scaleType = ImageView.ScaleType.CENTER_INSIDE
+                        setPadding(36, 36, 36, 36)
+                        setImageResource(R.drawable.picker_ic_unknown)
+                    },
                     LinearLayout.LayoutParams(120.dp, 120.dp),
                 )
-                box.addView(
-                    title,
+                addView(
+                    TextView(container.context).apply {
+                        tag = TAG_FALLBACK_TITLE
+                        gravity = Gravity.CENTER
+                        setTextColor(Color.WHITE)
+                        textSize = 15f
+                        maxLines = 2
+                    },
                     LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -386,8 +381,13 @@ internal class MediaPreviewAdapter
                         topMargin = 18.dp
                     },
                 )
-                box.addView(
-                    meta,
+                addView(
+                    TextView(container.context).apply {
+                        tag = TAG_FALLBACK_META
+                        gravity = Gravity.CENTER
+                        setTextColor(Color.parseColor("#BBBBBB"))
+                        textSize = 12f
+                    },
                     LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -395,9 +395,8 @@ internal class MediaPreviewAdapter
                         topMargin = 10.dp
                     },
                 )
-                providerView = box
                 container.addView(
-                    box,
+                    this,
                     FrameLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -407,15 +406,28 @@ internal class MediaPreviewAdapter
             }
         }
 
+        private fun updateFallbackView(box: LinearLayout, item: MediaEntity) {
+            for (i in 0 until box.childCount) {
+                when (val child = box.getChildAt(i)) {
+                    is TextView -> when (child.tag) {
+                        TAG_FALLBACK_TITLE -> child.text = item.displayName
+                        TAG_FALLBACK_META -> child.text = buildString {
+                            append(item.mimeType.ifBlank { "unknown" })
+                            append('\n')
+                            append(item.sizeBytes).append(" bytes")
+                        }
+                    }
+                }
+            }
+        }
+
         private val Int.dp: Int
             get() = (this * itemView.resources.displayMetrics.density).toInt()
 
         fun release() {
             providerView?.let { v ->
-                MediaSelector.otherPreviewProvider()?.onViewRecycled(v)
-                container.removeView(v)
+                boundProvider?.onViewRecycled(v)
             }
-            providerView = null
         }
     }
 }
