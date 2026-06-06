@@ -22,7 +22,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var preview: ImageView
     private lateinit var lastPickedHint: TextView
 
-    /** 上次选中的结果，供 preSelected 复现使用 */
     private var lastPicked: List<MediaEntity> = emptyList()
     private var lastPreviewIndex: Int = 0
 
@@ -78,7 +77,6 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
-        // ===== 压缩演示 =====
 
         findViewById<Button>(R.id.btn_pick_compress_image).setOnClickListener {
             PickIt.with(this)
@@ -123,7 +121,6 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
-        // ===== 裁剪演示 =====
 
         findViewById<Button>(R.id.btn_pick_crop_square).setOnClickListener {
             PickIt.with(this)
@@ -164,9 +161,7 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
-        // ===== 拍照演示 =====
 
-        // 1) 独立拍照：不进 picker，直接调起系统相机返回路径
         findViewById<Button>(R.id.btn_take_photo).setOnClickListener {
             PickIt.takePhoto(this) { success, filePath, uri ->
                 if (!success || filePath.isNullOrEmpty() || uri == null) {
@@ -179,7 +174,6 @@ class MainActivity : AppCompatActivity() {
                     append("path: $filePath\n")
                     append("uri:  $uri")
                 }
-                // 把刚拍的照片渲染出来给用户看
                 showLocalImage(filePath)
                 Toast.makeText(this, "已存入系统相册", Toast.LENGTH_SHORT).show()
             }
@@ -230,7 +224,6 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
-        // 2) 选图列表首位带"相机入口"item：用户可在 picker 内直接拍照并自动选中
         findViewById<Button>(R.id.btn_pick_with_camera).setOnClickListener {
             PickIt.with(this)
                 .type(MediaType.IMAGE)
@@ -251,7 +244,6 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
-        // 3) 预选复现：第二次打开时传入上次选中的列表，picker 自动复选
         findViewById<Button>(R.id.btn_pick_with_pre).setOnClickListener {
             if (lastPicked.isEmpty()) {
                 Toast.makeText(this, "请先选一次图片", Toast.LENGTH_SHORT).show()
@@ -262,7 +254,7 @@ class MainActivity : AppCompatActivity() {
                 .maxCount(9)
                 .grid(true)
                 .spanCount(4)
-                .preSelected(lastPicked)   // ← 列表里这些项会自动显示角标 1, 2, ...
+                .preSelected(lastPicked)
                 .start { render(it) }
         }
     }
@@ -277,7 +269,6 @@ class MainActivity : AppCompatActivity() {
                 e.filePath?.let { append("   path=$it\n") }
             }
         }
-        // 保存为下一次 preSelected 的输入
         if (list.isNotEmpty()) {
             lastPicked = list
             lastPickedHint.text = "上次选中: ${list.size} 项（点下方按钮可复现）"
@@ -305,7 +296,6 @@ class MainActivity : AppCompatActivity() {
             preview.visibility = ImageView.GONE
             return
         }
-        // 简单采样防 OOM（demo 用，生产环境应走图片加载器）
         val opts = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
             BitmapFactory.decodeFile(path, this)

@@ -29,10 +29,6 @@ import com.chat.picker.util.StorageAccess
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
-/**
- * 内部状态与系统 Photo Picker 的 cursor 解析、预加载缓存等收敛于此，
- * 仅供同包 [MediaSelector] / [MediaPickerActivity] 等内部访问。
- */
 internal object MediaSelectorInternal {
 
     const val MAX_SYSTEM_PICKER_ITEMS = 100

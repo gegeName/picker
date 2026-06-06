@@ -9,15 +9,8 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 
-/** 适配全面屏：根布局延伸到 system bars 后面，顶/底 bar 单独承接 inset 高度 */
 object EdgeToEdge {
 
-    /**
-     * 启用 edge-to-edge 并把 system bars 的高度作为 padding 应用到顶/底 bar 上。
-     * @param topBar 顶部 toolbar：会被 padding-top = statusBar 高度
-     * @param bottomBar 底部按钮区：会被 padding-bottom = navigationBar/imeBar 高度
-     * @param leftRightOn 是否处理左右边 inset（横屏 / 异形屏需要）。默认 true
-     */
     fun apply(
         activity: Activity,
         root: View,

@@ -35,7 +35,6 @@ object ImageLoader {
     private val tagKey = "imageloader_token".hashCode()
     private val seq = AtomicInteger()
 
-    /** 仅查内存缩略图缓存（不发起解码、不进 IO 池），命中即返回；用于预览页首帧占位 */
     fun peekThumb(uri: Uri, targetWidth: Int = 360, targetHeight: Int = 360): Bitmap? =
         cache.get("$uri@${targetWidth}x$targetHeight")
 
@@ -81,7 +80,6 @@ object ImageLoader {
         }
     }
 
-    /** 同步加载原图（用于预览页大图，已在工作线程调用）；不进缓存 */
     fun decodeOriginalSync(ctx: Context, uri: Uri, maxSize: Int): Bitmap? = try {
         decodeImage(ctx, uri, maxSize, maxSize)
     } catch (oom: OutOfMemoryError) {
@@ -95,7 +93,6 @@ object ImageLoader {
         null
     }
 
-    /** 视频首帧两级缓存：磁盘命中直接 decode，未命中走 retriever 并异步落盘 */
     private fun loadVideoThumb(ctx: Context, uri: Uri, key: String, w: Int, h: Int): Bitmap? {
         ThumbDiskCache.get(ctx, key)?.let { return it }
         val bmp = decodeVideoFrame(ctx, uri, w, h) ?: return null
@@ -103,7 +100,6 @@ object ImageLoader {
         return bmp
     }
 
-    /** 图片缩略图两级缓存：磁盘命中跳过 inJustDecodeBounds + 二次开流的开销 */
     private fun loadImageThumb(ctx: Context, uri: Uri, key: String, w: Int, h: Int): Bitmap? {
         ThumbDiskCache.get(ctx, key)?.let { return it }
         val bmp = decodeImage(ctx, uri, w, h) ?: return null
@@ -183,10 +179,6 @@ object ImageLoader {
         cache.evictAll()
     }
 
-    /**
-     * 缩略图磁盘缓存（图片 + 视频首帧通用）：cacheDir/thumb_cache 下，文件名用 sha1(key)。
-     * 上限 50MB，超额时按访问时间淘汰最旧的 1/4。读写都做 IO 异常兜底，永不向上抛。
-     */
     private object ThumbDiskCache {
         private const val DIR = "thumb_cache"
         private const val MAX_BYTES = 50L * 1024 * 1024

@@ -21,9 +21,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-/**
- * 超级缩放手势工具类
- */
 class ZoomGestureHelper private constructor(
     private val targetView: View,
     private val config: Config
@@ -31,25 +28,18 @@ class ZoomGestureHelper private constructor(
 
     data class Config(
 
-        /** 最小缩放 */
         val minScale: Float = 1f,
 
-        /** 最大缩放 */
         val maxScale: Float = 5f,
 
-        /** 双击每次放大倍率 */
         val doubleTapScaleFactor: Float = 2f,
 
-        /** 是否自动恢复 */
         val autoResetWhenRelease: Boolean = false,
 
-        /** 是否启用惯性 */
         val enableFling: Boolean = true,
 
-        /** 是否启用边界回弹 */
         val enableBounce: Boolean = true,
 
-        /** 动画时长 */
         val animDuration: Long = 280L
     )
 
@@ -472,7 +462,6 @@ class ZoomGestureHelper private constructor(
     }
 
     // =========================
-    // 平移
     // =========================
 
     private fun translate(
@@ -778,7 +767,6 @@ class ZoomGestureHelper private constructor(
                     startTransY * (1f - fraction)
             }
 
-            // 线性插值到 1，避免指数衰减带来的尾部抖动
             currentScale =
                 startScale + (1f - startScale) * fraction
         }
@@ -832,10 +820,6 @@ class ZoomGestureHelper private constructor(
         }
     }
 
-    /**
-     * 主动释放：移除所有监听、取消动画、回收 velocityTracker、关闭硬件层。
-     * 适用于 RecyclerView / ViewPager 复用 view 的场景。
-     */
     fun detach() {
         currentAnimator?.cancel()
         currentAnimator = null

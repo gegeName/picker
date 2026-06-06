@@ -20,16 +20,12 @@ import com.chat.picker.model.MediaType
 import com.chat.picker.util.PickerLog
 import java.io.File
 
-/**
- * 拍照工具。
- */
 internal object CameraHelper {
 
     private const val AUTHORITY_SUFFIX = ".chat.picker.fileprovider"
     private const val DIR_NAME = "picker_camera"
     private const val SUBFOLDER = "Camera"
 
-    /** 一次拍照请求的上下文 */
     class Pending(
         val uri: Uri,
         val filePath: String,
@@ -67,7 +63,6 @@ internal object CameraHelper {
         )
     }
 
-    /** 把拍照得到的结果构造成 MediaEntity，用于插入 picker 列表 */
     fun makeEntity(filePath: String, uri: Uri): MediaEntity {
         val now = System.currentTimeMillis()
         val file = File(filePath)
@@ -87,7 +82,6 @@ internal object CameraHelper {
         )
     }
 
-    /** 把录制得到的视频构造成 MediaEntity，用于插入 picker 列表 */
     fun makeVideoEntity(filePath: String, uri: Uri): MediaEntity {
         val now = System.currentTimeMillis()
         val file = File(filePath)
@@ -108,14 +102,10 @@ internal object CameraHelper {
         )
     }
 
-    /** CAMERA 权限是否已授予 */
     fun hasCameraPermission(ctx: Context): Boolean =
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
-    /**
-     * 独立拍照入口。框架自动申请 CAMERA 权限。
-     */
     fun take(
         activity: ComponentActivity,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
@@ -135,9 +125,6 @@ internal object CameraHelper {
         permLauncher.launch(Manifest.permission.CAMERA)
     }
 
-    /**
-     * 独立录视频入口。框架自动申请 CAMERA 权限。
-     */
     fun record(
         activity: ComponentActivity,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,

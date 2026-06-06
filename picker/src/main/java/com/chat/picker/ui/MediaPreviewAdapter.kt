@@ -319,10 +319,6 @@ internal class MediaPreviewAdapter
         }
     }
 
-    /**
-     * 其他文件类型的容器：把 [IOtherPreviewProvider] 注入的 View 放进 FrameLayout
-     * 当作 holder 根。未注册 provider 时显示一个最小信息态（文件名 + mime + 大小），不至于黑屏。
-     */
     private inner class OtherVH(parent: ViewGroup) : RecyclerView.ViewHolder(FrameLayout(parent.context).apply {
         layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT

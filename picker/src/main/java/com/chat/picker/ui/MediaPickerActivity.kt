@@ -697,7 +697,6 @@ class MediaPickerActivity : AppCompatActivity() {
         val imageC = MediaSelector.imageCompressor()
         val videoC = MediaSelector.videoCompressor()
 
-        // 判断有哪些项真的需要走压缩：按类型分别匹配 + 各自 needsCompress
         val needCompress = list.any { item ->
             (item.isImage && imageC != null && imageC.needsCompress(item)) ||
                 (item.isVideo && videoC != null && videoC.needsCompress(item))

@@ -12,10 +12,6 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-/**
- * 内置图片压缩器：先按目标边长采样缩放，再按质量输出。
- * 压缩策略偏向清晰度优先，避免为了体积极限牺牲到肉眼明显模糊。
- */
 class SmartImageCompressor @JvmOverloads constructor(
     private val ignoreByKb: Int = 100,
     private val quality: Int = 85,
