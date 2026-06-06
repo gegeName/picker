@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.PointF
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Handler
@@ -537,6 +538,61 @@ internal class CropImageView @JvmOverloads constructor(
     override fun imageDisplayBounds(): RectF {
         val bmp = bitmap ?: return RectF(0f, 0f, width.toFloat(), height.toFloat())
         return mappedImageBounds(bmp)
+    }
+
+    override fun imagePixelColorAt(x: Float, y: Float): Int? {
+        val bmp = bitmap ?: return null
+        val radius = dp(12f)
+        val leftTop = mapViewPointToBitmap(x - radius, y - radius)
+        val rightBottom = mapViewPointToBitmap(x + radius, y + radius)
+        if (leftTop == null || rightBottom == null) {
+            val point = mapViewPointToBitmap(x, y) ?: return null
+            val px = point.x.toInt().coerceIn(0, bmp.width - 1)
+            val py = point.y.toInt().coerceIn(0, bmp.height - 1)
+            return runCatching { bmp.getPixel(px, py) }.getOrNull()
+        }
+        val left = min(leftTop.x, rightBottom.x).toInt().coerceIn(0, bmp.width - 1)
+        val top = min(leftTop.y, rightBottom.y).toInt().coerceIn(0, bmp.height - 1)
+        val right = max(leftTop.x, rightBottom.x).toInt().coerceIn(0, bmp.width - 1)
+        val bottom = max(leftTop.y, rightBottom.y).toInt().coerceIn(0, bmp.height - 1)
+        return averageBitmapColor(bmp, left, top, right, bottom)
+    }
+
+    private fun mapViewPointToBitmap(x: Float, y: Float): PointF? {
+        val bmp = bitmap ?: return null
+        val inverse = Matrix()
+        if (!imageMatrix.invert(inverse)) return null
+        val pts = floatArrayOf(x, y)
+        inverse.mapPoints(pts)
+        if (pts[0] < 0f || pts[1] < 0f || pts[0] >= bmp.width || pts[1] >= bmp.height) return null
+        return PointF(pts[0], pts[1])
+    }
+
+    private fun averageBitmapColor(bmp: Bitmap, left: Int, top: Int, right: Int, bottom: Int): Int? {
+        var r = 0L
+        var g = 0L
+        var b = 0L
+        var count = 0
+        val stepX = ((right - left) / 4).coerceAtLeast(1)
+        val stepY = ((bottom - top) / 4).coerceAtLeast(1)
+        var y = top
+        while (y <= bottom) {
+            var x = left
+            while (x <= right) {
+                val color = runCatching { bmp.getPixel(x, y) }.getOrNull() ?: return null
+                r += (color shr 16) and 0xFF
+                g += (color shr 8) and 0xFF
+                b += color and 0xFF
+                count++
+                x += stepX
+            }
+            y += stepY
+        }
+        if (count <= 0) return null
+        return 0xFF000000.toInt() or
+            (((r / count).toInt() and 0xFF) shl 16) or
+            (((g / count).toInt() and 0xFF) shl 8) or
+            ((b / count).toInt() and 0xFF)
     }
 
     private var onTextEditRequest: ((Int, String, RectF, Int) -> Unit)? = null

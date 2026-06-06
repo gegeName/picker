@@ -32,6 +32,7 @@ internal class CropImageToolHelper(
         fun dp(value: Float): Float
         fun imageDisplayBounds(): RectF
         fun requestEditText(index: Int, text: String, rect: RectF, color: Int)
+        fun imagePixelColorAt(x: Float, y: Float): Int?
         fun invalidateView()
         fun requestDisallowInterceptTouch(disallow: Boolean)
         fun ensureImageCoversCrop()
@@ -84,8 +85,7 @@ internal class CropImageToolHelper(
         strokeJoin = Paint.Join.ROUND
         strokeWidth = host.dp(DEFAULT_BRUSH_SIZE_DP)
     }
-    private val mosaicPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xCCBDBDBD.toInt()
+    private val mosaicPaint = Paint().apply {
         style = Paint.Style.FILL
     }
     private val eraserPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -244,7 +244,7 @@ internal class CropImageToolHelper(
             null,
         )
         canvas.clipRect(bounds)
-        val block = host.dp(18f)
+        val block = host.dp(MOSAIC_BLOCK_SIZE_DP)
         editRefs.forEach {
             when (it) {
                 is EditRef.Stroke -> canvas.drawPath(it.item.path, it.item.paint)
@@ -261,7 +261,7 @@ internal class CropImageToolHelper(
             imageBounds = RectF(imageBounds),
             viewWidth = host.viewWidth.toFloat(),
             viewHeight = host.viewHeight.toFloat(),
-            blockSize = host.dp(18f),
+            blockSize = host.dp(MOSAIC_BLOCK_SIZE_DP),
             textPadding = textPadding(),
             textShadowRadius = host.dp(2f),
             textShadowDy = host.dp(1f),
@@ -272,7 +272,7 @@ internal class CropImageToolHelper(
                         StrokeSnapshot(Path(it.item.path), Paint(it.item.paint), it.item.order)
                     )
                     is EditRef.Mosaic -> EditOpSnapshot.Mosaic(
-                        MosaicPointSnapshot(it.item.x, it.item.y, it.item.order)
+                        MosaicPointSnapshot(it.item.x, it.item.y, it.item.color, it.item.order)
                     )
                     is EditRef.Text -> EditOpSnapshot.Text(
                         TextSnapshot(
@@ -293,6 +293,7 @@ internal class CropImageToolHelper(
     }
 
     private fun drawMosaicPoint(canvas: Canvas, point: Point, block: Float) {
+        mosaicPaint.color = point.color
         canvas.drawRect(
             point.x - block / 2f,
             point.y - block / 2f,
@@ -1027,7 +1028,7 @@ internal class CropImageToolHelper(
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val point = clampPointToImage(event.x, event.y) ?: return true
-                    if (hypot(point.x - lastX, point.y - lastY) < host.dp(6f)) return true
+                    if (hypot(point.x - lastX, point.y - lastY) < host.dp(MOSAIC_STEP_DP)) return true
                     addMosaicPoint(point.x, point.y)
                     lastX = point.x
                     lastY = point.y
@@ -1041,7 +1042,7 @@ internal class CropImageToolHelper(
         }
 
         private fun addMosaicPoint(x: Float, y: Float) {
-            val point = Point(x, y, nextEditOrder++)
+            val point = Point(x, y, host.imagePixelColorAt(x, y) ?: 0xFFBDBDBD.toInt(), nextEditOrder++)
             mosaicPoints.add(point)
             editRefs.add(EditRef.Mosaic(point))
             host.markEdited()
@@ -1104,7 +1105,7 @@ internal class CropImageToolHelper(
 
     private data class DrawStroke(val path: Path, val paint: Paint, val order: Int)
     private data class EraserStroke(val path: Path, val order: Int)
-    private data class Point(val x: Float, val y: Float, val order: Int)
+    private data class Point(val x: Float, val y: Float, val color: Int, val order: Int)
     private data class TextItem(
         var text: String,
         val rect: RectF,
@@ -1149,6 +1150,7 @@ internal class CropImageToolHelper(
     data class MosaicPointSnapshot(
         val x: Float,
         val y: Float,
+        val color: Int,
         val order: Int,
     )
 
@@ -1164,6 +1166,8 @@ internal class CropImageToolHelper(
         const val DEFAULT_BRUSH_SIZE_DP = 5f
         const val MIN_BRUSH_SIZE_DP = 1f
         const val MAX_BRUSH_SIZE_DP = 50f
+        private const val MOSAIC_BLOCK_SIZE_DP = 24f
+        private const val MOSAIC_STEP_DP = 12f
 
         fun drawEditSnapshot(canvas: Canvas, snapshot: EditSnapshot) {
             if (snapshot.imageBounds.isEmpty) return
@@ -1188,6 +1192,7 @@ internal class CropImageToolHelper(
 
         private fun drawMosaicSnapshot(canvas: Canvas, item: MosaicPointSnapshot, snapshot: EditSnapshot) {
             val block = snapshot.blockSize
+            snapshot.mosaicPaint.color = item.color
             canvas.drawRect(
                 item.x - block / 2f,
                 item.y - block / 2f,
