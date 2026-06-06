@@ -126,6 +126,7 @@ internal class CropImageToolHelper(
     private var nextEditOrder = 0
     private var selectedTextIndex = -1
     private var currentTextColor = Color.WHITE
+    private var hasEraserEdits = false
 
     private var currentTool = Tool.NONE
     private var cropVisible = false
@@ -236,13 +237,17 @@ internal class CropImageToolHelper(
     fun drawEdits(canvas: Canvas) {
         val bounds = host.imageDisplayBounds()
         if (bounds.isEmpty) return
-        val saveCount = canvas.saveLayer(
-            0f,
-            0f,
-            host.viewWidth.toFloat(),
-            host.viewHeight.toFloat(),
-            null,
-        )
+        val saveCount = if (hasEraserEdits) {
+            canvas.saveLayer(
+                0f,
+                0f,
+                host.viewWidth.toFloat(),
+                host.viewHeight.toFloat(),
+                null,
+            )
+        } else {
+            canvas.save()
+        }
         canvas.clipRect(bounds)
         val block = host.dp(MOSAIC_BLOCK_SIZE_DP)
         editRefs.forEach {
@@ -343,6 +348,7 @@ internal class CropImageToolHelper(
         eraserStrokes.clear()
         editRefs.clear()
         selectedTextIndex = -1
+        hasEraserEdits = false
     }
 
     private fun createTextItem(text: String, x: Float, y: Float): TextItem {
@@ -820,6 +826,7 @@ internal class CropImageToolHelper(
                     val stroke = EraserStroke(activePath!!, nextEditOrder++)
                     eraserStrokes.add(stroke)
                     editRefs.add(EditRef.Eraser(stroke))
+                    hasEraserEdits = true
                     host.markEdited()
                     host.invalidateView()
                 }
@@ -1171,13 +1178,17 @@ internal class CropImageToolHelper(
 
         fun drawEditSnapshot(canvas: Canvas, snapshot: EditSnapshot) {
             if (snapshot.imageBounds.isEmpty) return
-            val saveCount = canvas.saveLayer(
-                0f,
-                0f,
-                snapshot.viewWidth,
-                snapshot.viewHeight,
-                null,
-            )
+            val saveCount = if (snapshot.ops.any { it is EditOpSnapshot.Eraser }) {
+                canvas.saveLayer(
+                    0f,
+                    0f,
+                    snapshot.viewWidth,
+                    snapshot.viewHeight,
+                    null,
+                )
+            } else {
+                canvas.save()
+            }
             canvas.clipRect(snapshot.imageBounds)
             snapshot.ops.forEach {
                 when (it) {

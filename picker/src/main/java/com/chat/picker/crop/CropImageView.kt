@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.PointF
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Handler
@@ -542,30 +541,25 @@ internal class CropImageView @JvmOverloads constructor(
 
     override fun imagePixelColorAt(x: Float, y: Float): Int? {
         val bmp = bitmap ?: return null
-        val radius = dp(12f)
-        val leftTop = mapViewPointToBitmap(x - radius, y - radius)
-        val rightBottom = mapViewPointToBitmap(x + radius, y + radius)
-        if (leftTop == null || rightBottom == null) {
-            val point = mapViewPointToBitmap(x, y) ?: return null
-            val px = point.x.toInt().coerceIn(0, bmp.width - 1)
-            val py = point.y.toInt().coerceIn(0, bmp.height - 1)
-            return runCatching { bmp.getPixel(px, py) }.getOrNull()
-        }
-        val left = min(leftTop.x, rightBottom.x).toInt().coerceIn(0, bmp.width - 1)
-        val top = min(leftTop.y, rightBottom.y).toInt().coerceIn(0, bmp.height - 1)
-        val right = max(leftTop.x, rightBottom.x).toInt().coerceIn(0, bmp.width - 1)
-        val bottom = max(leftTop.y, rightBottom.y).toInt().coerceIn(0, bmp.height - 1)
-        return averageBitmapColor(bmp, left, top, right, bottom)
-    }
-
-    private fun mapViewPointToBitmap(x: Float, y: Float): PointF? {
-        val bmp = bitmap ?: return null
         val inverse = Matrix()
         if (!imageMatrix.invert(inverse)) return null
-        val pts = floatArrayOf(x, y)
+        val center = floatArrayOf(x, y)
+        inverse.mapPoints(center)
+        if (!isBitmapPointInside(bmp, center[0], center[1])) return null
+
+        val radius = dp(12f)
+        val pts = floatArrayOf(
+            x - radius,
+            y - radius,
+            x + radius,
+            y + radius,
+        )
         inverse.mapPoints(pts)
-        if (pts[0] < 0f || pts[1] < 0f || pts[0] >= bmp.width || pts[1] >= bmp.height) return null
-        return PointF(pts[0], pts[1])
+        val left = min(pts[0], pts[2]).toInt().coerceIn(0, bmp.width - 1)
+        val top = min(pts[1], pts[3]).toInt().coerceIn(0, bmp.height - 1)
+        val right = max(pts[0], pts[2]).toInt().coerceIn(0, bmp.width - 1)
+        val bottom = max(pts[1], pts[3]).toInt().coerceIn(0, bmp.height - 1)
+        return averageBitmapColor(bmp, left, top, right, bottom)
     }
 
     private fun averageBitmapColor(bmp: Bitmap, left: Int, top: Int, right: Int, bottom: Int): Int? {
@@ -579,7 +573,7 @@ internal class CropImageView @JvmOverloads constructor(
         while (y <= bottom) {
             var x = left
             while (x <= right) {
-                val color = runCatching { bmp.getPixel(x, y) }.getOrNull() ?: return null
+                val color = bmp.getPixel(x, y)
                 r += (color shr 16) and 0xFF
                 g += (color shr 8) and 0xFF
                 b += color and 0xFF
@@ -593,6 +587,10 @@ internal class CropImageView @JvmOverloads constructor(
             (((r / count).toInt() and 0xFF) shl 16) or
             (((g / count).toInt() and 0xFF) shl 8) or
             ((b / count).toInt() and 0xFF)
+    }
+
+    private fun isBitmapPointInside(bmp: Bitmap, x: Float, y: Float): Boolean {
+        return x >= 0f && y >= 0f && x < bmp.width && y < bmp.height
     }
 
     private var onTextEditRequest: ((Int, String, RectF, Int) -> Unit)? = null
