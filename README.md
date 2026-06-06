@@ -70,87 +70,21 @@ dependencies {
 
 库内已声明媒体读取、相机、FileProvider 等基础配置，正常情况下会自动合并到宿主 `AndroidManifest.xml`。
 
-## 快速开始
+## 快速使用案例
+
+### 选择图片
 
 ```kotlin
-import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickIt
 import com.chat.picker.model.MediaType
 
-MediaSelector.with(this)
+PickIt.with(this)
     .type(MediaType.IMAGE)
     .maxCount(9)
     .grid(true)
     .spanCount(4)
     .start { result ->
         // result: List<MediaEntity>
-    }
-```
-
-也可以使用别名：
-
-```kotlin
-import com.chat.picker.api.PickIt
-
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .maxCount(9)
-    .start { list ->
-        list.forEach { item ->
-            println(item.uri)
-            println(item.filePath)
-        }
-    }
-```
-
-Fragment 中使用：
-
-```kotlin
-MediaSelector.with(this)
-    .type(MediaType.VIDEO)
-    .maxCount(3)
-    .start { result ->
-    }
-```
-
-## 返回数据
-
-`start {}` 返回 `List<MediaEntity>`。
-
-```kotlin
-data class MediaEntity(
-    val id: Long,
-    val uri: Uri,
-    val filePath: String?,
-    val displayName: String,
-    val mimeType: String,
-    val sizeBytes: Long,
-    val durationMs: Long,
-    val dateAddedSec: Long,
-    val width: Int,
-    val height: Int,
-    val mediaType: MediaType,
-    val albumId: Long = 0L
-)
-```
-
-常用判断：
-
-```kotlin
-item.isImage
-item.isVideo
-item.isAudio
-```
-
-## 选择类型
-
-### 选择图片
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .maxCount(9)
-    .grid(true)
-    .start { result ->
     }
 ```
 
@@ -165,140 +99,7 @@ PickIt.with(this)
     }
 ```
 
-### 选择音频
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.AUDIO)
-    .maxCount(5)
-    .grid(false)
-    .start { result ->
-    }
-```
-
-### 图片和视频混选
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE_VIDEO)
-    .maxCount(9)
-    .start { result ->
-    }
-```
-
-### 选择全部文件
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.ALL)
-    .maxCount(9)
-    .start { result ->
-    }
-```
-
-## 自定义筛选
-
-```kotlin
-import com.chat.picker.model.MediaFilter
-import com.chat.picker.model.MediaType
-
-val filter = MediaFilter.Builder(MediaType.ALL)
-    .addMimeType("image/png", "video/mp4")
-    .minSizeBytes(10 * 1024)
-    .maxDurationMs(60_000)
-    .build()
-
-PickIt.with(this)
-    .filter(filter)
-    .maxCount(6)
-    .start { result ->
-    }
-```
-
-DSL 写法：
-
-```kotlin
-PickIt.with(this)
-    .filter(MediaType.ALL) {
-        addMimeType("image/png", "video/mp4")
-        minSizeBytes(10 * 1024)
-        maxDurationMs(60_000)
-    }
-    .start { result ->
-    }
-```
-
-## 拍照和录视频
-
-### 独立拍照
-
-不进入选择器 UI，直接调起系统相机。
-
-```kotlin
-PickIt.takePhoto(this) { success, filePath, uri ->
-    if (success) {
-        // filePath / uri
-    }
-}
-```
-
-### 独立录视频
-
-```kotlin
-PickIt.takeVideo(this) { success, filePath, uri ->
-    if (success) {
-        // filePath / uri
-    }
-}
-```
-
-### 链式拍照并返回 MediaEntity
-
-可以继续接裁剪或压缩。
-
-```kotlin
-PickIt.with(this)
-    .takePhoto()
-    .smartCompress()
-    .start { result ->
-    }
-```
-
-### 链式录视频并压缩
-
-```kotlin
-PickIt.with(this)
-    .takeVideo()
-    .smartVideoCompress()
-    .start { result ->
-    }
-```
-
-### 列表首位显示相机入口
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .showCameraEntry(true)
-    .maxCount(9)
-    .start { result ->
-    }
-```
-
-视频列表首位录制入口：
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.VIDEO)
-    .showCameraEntry(true)
-    .maxCount(3)
-    .start { result ->
-    }
-```
-
-## 图片裁剪
-
-### 方形裁剪
+### 图片裁剪
 
 ```kotlin
 import com.chat.picker.api.CropOutputFormat
@@ -313,100 +114,18 @@ PickIt.with(this)
     }
 ```
 
-### 自由比例裁剪
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .crop()
-    .cropFreeStyle()
-    .start { result ->
-    }
-```
-
-### 圆形裁剪
-
-圆形裁剪会强制 1:1，并默认输出 PNG。
-
-```kotlin
-PickIt.with(this)
-    .takePhoto()
-    .cropOval()
-    .cropMaxSize(512, 512)
-    .start { result ->
-    }
-```
-
-## 图片编辑
-
-内置图片编辑支持多图，包含裁剪、画笔、文字、马赛克等功能。
+### 图片编辑
 
 ```kotlin
 PickIt.with(this)
     .type(MediaType.IMAGE)
     .maxCount(9)
-    .grid(true)
     .imageEdit()
     .start { result ->
-        // 返回所有图片；编辑过的图片会替换为编辑后的结果
     }
 ```
 
-## 压缩
-
-### 图片压缩
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .maxCount(9)
-    .smartCompress(
-        ignoreByKb = 100,
-        quality = 85,
-        minQuality = 75,
-        maxWidth = 1080,
-        maxHeight = 1920,
-        minLongSide = 720,
-        preserveAlpha = true,
-    )
-    .start { result ->
-        // result 中是压缩后的图片
-    }
-```
-
-### 视频压缩
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.VIDEO)
-    .maxCount(3)
-    .smartVideoCompress(
-        maxLongSide = 1280,
-        targetBitRate = 2_500_000,
-        frameRate = 30,
-        minCompressBytes = 4L * 1024 * 1024,
-        minDurationMs = 5_000L,
-        minUsefulLongSide = 720,
-    )
-    .start { result ->
-        // result 中是压缩后的视频
-    }
-```
-
-### 裁剪后压缩
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .crop()
-    .cropAspectRatio(1, 1)
-    .cropMaxSize(1024, 1024)
-    .smartCompress()
-    .start { result ->
-    }
-```
-
-### 拍照后压缩
+### 拍照并压缩
 
 ```kotlin
 PickIt.with(this)
@@ -416,7 +135,7 @@ PickIt.with(this)
     }
 ```
 
-### 录视频后压缩
+### 录视频并压缩
 
 ```kotlin
 PickIt.with(this)
@@ -426,284 +145,214 @@ PickIt.with(this)
     }
 ```
 
-### 控制压缩 loading 返回行为
+## API 使用说明
 
-默认 `false`：压缩中会拦截返回，等待压缩完成。
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .smartCompress()
-    .cancelCompressOnBack(true)
-    .start { result ->
-    }
-```
-
-### 全局启用压缩
-
-```kotlin
-MediaSelector.setSmartImageCompressor()
-MediaSelector.setSmartVideoCompressor()
-```
-
-取消全局压缩：
-
-```kotlin
-MediaSelector.setImageCompressor(null)
-MediaSelector.setVideoCompressor(null)
-```
-
-### 自定义压缩器
-
-```kotlin
-import android.content.Context
-import com.chat.picker.compress.CompressCallback
-import com.chat.picker.compress.IImageCompressor
-import com.chat.picker.model.MediaEntity
-
-class MyImageCompressor : IImageCompressor {
-    override fun needsCompress(item: MediaEntity): Boolean {
-        return item.sizeBytes > 500 * 1024
-    }
-
-    override fun compress(
-        context: Context,
-        item: MediaEntity,
-        callback: CompressCallback,
-    ) {
-        try {
-            callback.onProgress(0)
-            // TODO 压缩图片，生成新的 MediaEntity
-            callback.onProgress(100)
-            callback.onSuccess(item)
-        } catch (e: Throwable) {
-            // 失败时框架会自动使用原文件兜底
-            callback.onError(e)
-        }
-    }
-}
-
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .imageCompressor(MyImageCompressor())
-    .start { result ->
-    }
-```
-
-视频压缩实现 `IVideoCompressor`，用法同上。
-
-## 系统选择器
-
-### Android 系统 Photo Picker
-
-API 33+ 可启用系统 Photo Picker，零权限。音频类型会自动回退到本框架。
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .useSystemPhotoPicker(true)
-    .start { result ->
-    }
-```
-
-如果开启裁剪、图片编辑等图片处理能力，会自动使用本框架流程。
-
-### 系统 SAF 文件选择器
-
-适合 PDF、ZIP、DOC 等任意文件，Google Play 更友好。
-
-```kotlin
-PickIt.pickFiles(
-    activity = this,
-    mimeTypes = arrayOf("application/pdf", "application/zip"),
-    allowMultiple = true,
-) { result ->
-}
-```
-
-链式写法：
-
-```kotlin
-PickIt.with(this)
-    .filter(MediaType.ALL) {
-        addMimeType("application/pdf", "application/zip")
-    }
-    .useSystemFilePicker(true)
-    .multiSelect(true)
-    .maxCount(9)
-    .start { result ->
-    }
-```
-
-## 预选回显
-
-```kotlin
-var lastPicked: List<MediaEntity> = emptyList()
-
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .maxCount(9)
-    .preSelected(lastPicked)
-    .start { result ->
-        lastPicked = result
-    }
-```
-
-## 自定义图片加载引擎
-
-默认内置图片加载实现，也可以接入 Glide、Coil、Picasso 等。
-
-```kotlin
-import android.net.Uri
-import android.widget.ImageView
-import com.chat.picker.loader.IImageEngine
-import com.chat.picker.model.MediaEntity
-
-class GlideImageEngine : IImageEngine {
-    override fun loadThumbnail(view: ImageView, uri: Uri, isVideo: Boolean) {
-        // Glide.with(view).load(uri).into(view)
-    }
-
-    override fun loadOriginal(view: ImageView, uri: Uri, isVideo: Boolean) {
-        // Glide.with(view).load(uri).fitCenter().into(view)
-    }
-
-    override fun loadThumbnail(view: ImageView, item: MediaEntity) {
-        // 可根据 item.isVideo / item.isAudio / item.mimeType 自行处理封面
-        loadThumbnail(view, item.uri, item.isVideo)
-    }
-}
-
-MediaSelector.setImageEngine(GlideImageEngine())
-```
-
-单次调用覆盖：
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .imageEngine(GlideImageEngine())
-    .start { result ->
-    }
-```
-
-## 其他文件预览扩展
-
-当选择 PDF、DOC、ZIP 等其他文件时，可以注册自定义预览 View。
-
-```kotlin
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
-import com.chat.picker.model.MediaEntity
-import com.chat.picker.preview.IOtherPreviewProvider
-
-MediaSelector.setOtherPreviewProvider(object : IOtherPreviewProvider {
-    override fun createView(parent: ViewGroup): View {
-        // 在 onCreateViewHolder 阶段调用；这里只创建 View，不做具体文件加载
-        return TextView(parent.context)
-    }
-
-    override fun bindView(view: View, item: MediaEntity) {
-        // 每次绑定数据时调用
-        (view as TextView).text = item.displayName
-    }
-
-    override fun onViewRecycled(view: View) {
-        // 清理下载、渲染任务等
-    }
-})
-```
-
-取消：
-
-```kotlin
-MediaSelector.setOtherPreviewProvider(null)
-```
-
-## 第三方图片裁剪/编辑
-
-如果希望使用第三方裁剪或编辑页面，可以通过 `ImageProcessStore` 接入。第三方处理完成后，结果仍然会从 `start {}` 返回。
-
-### 启动第三方编辑 Activity
-
-```kotlin
-import com.chat.picker.api.ImageProcessStore
-
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .maxCount(9)
-    .imageEdit()
-    .imageEditProcessor(
-        ImageProcessStore.activityProcessor(PhotoEditorActivity::class.java)
-    )
-    .start { result ->
-    }
-```
-
-第三方裁剪：
-
-```kotlin
-PickIt.with(this)
-    .type(MediaType.IMAGE)
-    .crop()
-    .imageCropProcessor(
-        ImageProcessStore.activityProcessor(ThirdCropActivity::class.java)
-    )
-    .start { result ->
-    }
-```
-
-### 在第三方 Activity 中回传结果
-
-```kotlin
-val requestId = intent.getStringExtra(ImageProcessStore.EXTRA_REQUEST_ID).orEmpty()
-val sourceItems = ImageProcessStore.items(requestId)
-
-// TODO 使用第三方 SDK 编辑/裁剪，生成 editedItems
-ImageProcessStore.success(requestId, editedItems)
-finish()
-```
-
-取消：
-
-```kotlin
-ImageProcessStore.cancel(requestId)
-finish()
-```
-
-失败：
-
-```kotlin
-ImageProcessStore.error(requestId, throwable)
-finish()
-```
-
-## 常用配置说明
+### 入口
 
 | API | 说明 |
 | --- | --- |
-| `type(MediaType)` | 设置媒体类型 |
-| `filter(MediaFilter)` | 设置完整筛选条件 |
-| `maxCount(n)` | 最大选择数量 |
-| `grid(true/false)` | 是否使用网格 |
-| `spanCount(n)` | 网格列数 |
-| `multiSelect(true/false)` | 是否允许多选 |
-| `showCameraEntry(true)` | 列表首位显示拍照/录制入口 |
-| `preSelected(list)` | 打开时自动复选 |
-| `showFirstLoading(true)` | 首次加载是否显示 loading |
-| `cancelCompressOnBack(true)` | 压缩中返回是否取消压缩 |
-| `crop()` | 开启内置裁剪 |
-| `imageEdit()` | 开启内置图片编辑 |
-| `smartCompress()` | 启用内置图片压缩 |
-| `smartVideoCompress()` | 启用内置视频压缩 |
-| `useSystemPhotoPicker(true)` | 优先使用系统 Photo Picker |
-| `useSystemFilePicker(true)` | 使用系统 SAF 文件选择器 |
+| `MediaSelector.with(activity)` | 创建 Activity 版选择器 |
+| `MediaSelector.with(fragment)` | 创建 Fragment 版选择器 |
+| `PickIt.with(...)` | `MediaSelector` 的别名，用法一致 |
+| `start(listener)` | 启动选择流程，完成后返回 `List<MediaEntity>` |
+
+取消选择时不会触发 `start` 回调。
+
+### 媒体类型
+
+| 类型 | 说明 |
+| --- | --- |
+| `MediaType.IMAGE` | 图片 |
+| `MediaType.VIDEO` | 视频 |
+| `MediaType.AUDIO` | 音频 |
+| `MediaType.IMAGE_VIDEO` | 图片和视频混选 |
+| `MediaType.ALL` | 全部文件 |
+
+### 基础选择配置
+
+| API | 说明 |
+| --- | --- |
+| `type(type)` | 设置选择的媒体类型 |
+| `filter(filter)` | 传入完整 `MediaFilter` |
+| `filter(type) { ... }` | 使用 DSL 构建筛选条件 |
+| `maxCount(n)` | 最大选择数量，最小按 1 处理 |
+| `grid(enable)` | 是否以网格模式打开；`false` 为列表模式 |
+| `spanCount(n)` | 网格列数，最小按 2 处理 |
+| `multiSelect(enable)` | 是否允许多选；`false` 为单选 |
+| `preSelected(list)` | 打开 picker 时自动复选已选项 |
+| `showFirstLoading(enable)` | 首次加载是否显示 loading 弹窗 |
+
+### MediaFilter
+
+| API | 说明 |
+| --- | --- |
+| `MediaFilter.Builder(type)` | 创建筛选条件构建器 |
+| `addMimeType(vararg mimeType)` | 叠加 MIME 类型筛选，如 `image/png`、`video/mp4` |
+| `extraSelection(selection, vararg args)` | 添加高级 MediaStore SQL 条件 |
+| `minSizeBytes(bytes)` | 设置最小文件体积 |
+| `maxDurationMs(ms)` | 设置最大媒体时长 |
+| `build()` | 构建 `MediaFilter` |
+
+### 返回数据 MediaEntity
+
+| 字段/API | 说明 |
+| --- | --- |
+| `id` | MediaStore id；框架生成的新文件通常为负数 id |
+| `uri` | 文件 Uri，建议优先使用 |
+| `filePath` | 真实路径，部分系统选择器或云端文件可能为空 |
+| `displayName` | 文件名 |
+| `mimeType` | MIME 类型 |
+| `sizeBytes` | 文件大小，单位 byte |
+| `durationMs` | 音视频时长，单位 ms |
+| `dateAddedSec` | 添加时间，单位秒 |
+| `width` / `height` | 图片或视频宽高 |
+| `mediaType` | 媒体类型 |
+| `albumId` | 音频专辑 id |
+| `isImage` | 是否图片 |
+| `isVideo` | 是否视频 |
+| `isAudio` | 是否音频 |
+| `albumArtUri` | 音频专辑封面 Uri，无封面时为空 |
+
+### 拍照和录视频
+
+| API | 说明 |
+| --- | --- |
+| `MediaSelector.takePhoto(activity, listener)` | 独立拍照，不进入 picker UI |
+| `MediaSelector.takePhoto(fragment, listener)` | Fragment 版独立拍照 |
+| `MediaSelector.takeVideo(activity, listener)` | 独立录视频，不进入 picker UI |
+| `MediaSelector.takeVideo(fragment, listener)` | Fragment 版独立录视频 |
+| `takePhoto()` | 链式拍照入口，结果以 `List<MediaEntity>` 从 `start` 返回 |
+| `takeVideo()` | 链式录视频入口，结果以 `List<MediaEntity>` 从 `start` 返回 |
+| `showCameraEntry(enable)` | 在列表首位显示拍照/录制入口 |
+
+独立拍照和独立录视频回调中，用户取消或失败时 `success=false`，`filePath` 和 `uri` 为空。
+
+### 裁剪
+
+| API | 说明 |
+| --- | --- |
+| `crop(enable)` | 开启内置裁剪；开启后自动单选 |
+| `cropAspectRatio(x, y)` | 设置固定裁剪比例，如 1:1、4:3；小于等于 0 表示自由比例 |
+| `cropFreeStyle()` | 使用自由比例裁剪 |
+| `cropOutput(format, quality)` | 设置输出格式和质量；JPEG 使用质量参数，PNG 忽略质量 |
+| `cropOval(enable)` | 开启圆形裁剪；自动 1:1，并默认输出 PNG |
+| `cropShape(shape)` | 设置裁剪框形状，支持 `RECTANGLE` 和 `OVAL` |
+| `cropMaxSize(width, height)` | 设置裁剪结果最大输出尺寸 |
+
+圆形裁剪会强制输出 PNG，以保留透明区域。
+
+### 图片编辑
+
+| API | 说明 |
+| --- | --- |
+| `imageEdit(enable)` | 开启内置图片编辑 |
+| `imageEditProcessor(processor)` | 使用第三方图片编辑处理器 |
+
+内置图片编辑支持多图，功能包括裁剪、画笔、文字、马赛克、颜色选择和画笔大小。编辑后的图片会替换原图结果，未编辑图片保持原结果返回。
+
+### 压缩
+
+| API | 说明 |
+| --- | --- |
+| `smartCompress(...)` | 本次选择启用内置智能图片压缩 |
+| `smartVideoCompress(...)` | 本次选择启用内置 MediaCodec 视频压缩 |
+| `imageCompressor(c)` | 本次选择使用自定义图片压缩器 |
+| `videoCompressor(c)` | 本次选择使用自定义视频压缩器 |
+| `cancelCompressOnBack(enable)` | 压缩 loading 显示期间，返回键/取消是否中断后台压缩 |
+| `MediaSelector.setSmartImageCompressor(...)` | 全局启用内置图片压缩 |
+| `MediaSelector.setSmartVideoCompressor(...)` | 全局启用内置视频压缩 |
+| `MediaSelector.setImageCompressor(c)` | 全局设置图片压缩器；传 `null` 取消 |
+| `MediaSelector.setVideoCompressor(c)` | 全局设置视频压缩器；传 `null` 取消 |
+
+`smartCompress` 参数说明：
+
+| 参数 | 说明 |
+| --- | --- |
+| `ignoreByKb` | 小于该 KB 值的图片跳过压缩 |
+| `quality` | JPEG 初始输出质量，范围 1..100 |
+| `minQuality` | JPEG 最低输出质量 |
+| `maxWidth` / `maxHeight` | 输出最大宽高 |
+| `minLongSide` | 多轮压缩时允许缩放到的最小长边 |
+| `preserveAlpha` | 透明图片是否优先保留 PNG 透明通道 |
+
+`smartVideoCompress` 参数说明：
+
+| 参数 | 说明 |
+| --- | --- |
+| `maxLongSide` | 输出视频最长边上限 |
+| `targetBitRate` | 目标视频码率 |
+| `frameRate` | 输出帧率 |
+| `minCompressBytes` | 小于该体积的视频跳过压缩 |
+| `minDurationMs` | 短视频判断阈值 |
+| `minUsefulLongSide` | 短视频低于该最长边时跳过压缩 |
+
+自定义压缩器需要实现 `IImageCompressor` 或 `IVideoCompressor`。压缩完成后必须调用 `CompressCallback.onSuccess(item)` 或 `CompressCallback.onError(error)`，否则压缩 loading 不会结束。调用 `onError` 时框架会自动使用原文件兜底。
+
+### 系统选择器
+
+| API | 说明 |
+| --- | --- |
+| `useSystemPhotoPicker(enable)` | API 33+ 优先使用系统 Photo Picker，零权限 |
+| `useSystemFilePicker(enable)` | 使用系统 SAF 文件选择器 |
+| `MediaSelector.pickFiles(activity, mimeTypes, allowMultiple, listener)` | 独立 SAF 文件选择入口 |
+| `MediaSelector.pickFiles(fragment, mimeTypes, allowMultiple, listener)` | Fragment 版 SAF 文件选择入口 |
+
+开启裁剪、图片编辑等图片处理能力时，会自动回到本框架流程。音频类型不会使用系统 Photo Picker。
+
+### 图片加载引擎
+
+| API | 说明 |
+| --- | --- |
+| `MediaSelector.setImageEngine(engine)` | 全局设置图片加载引擎；传 `null` 恢复内置默认 |
+| `imageEngine(engine)` | 单次选择覆盖图片加载引擎 |
+| `IImageEngine.loadThumbnail(view, item)` | 列表缩略图加载，推荐实现 |
+| `IImageEngine.loadOriginal(view, item)` | 预览大图加载，推荐实现 |
+| `IImageEngine.loadThumbnail(view, uri, isVideo)` | 旧版缩略图加载接口 |
+| `IImageEngine.loadOriginal(view, uri, isVideo)` | 旧版原图加载接口 |
+
+接入 Glide、Coil、Picasso 时，实现 `IImageEngine` 即可。音频封面可使用 `MediaEntity.albumArtUri`，其他文件可根据 `mimeType` 或扩展名渲染业务图标。
+
+### 其他文件预览
+
+| API | 说明 |
+| --- | --- |
+| `MediaSelector.setOtherPreviewProvider(provider)` | 全局注册其他文件预览扩展 |
+| `IOtherPreviewProvider.createView(parent)` | 在 `onCreateViewHolder` 阶段调用，只负责创建 View |
+| `IOtherPreviewProvider.bindView(view, item)` | 每次绑定文件数据时调用 |
+| `IOtherPreviewProvider.onViewRecycled(view)` | View 被回收前调用，用于清理下载、渲染任务等 |
+
+适用于 PDF、DOC、XLS、PPT、ZIP 等非图片/视频/音频文件的自定义预览。
+
+### 第三方图片裁剪/编辑
+
+| API | 说明 |
+| --- | --- |
+| `imageCropProcessor(processor)` | 使用第三方图片裁剪处理器 |
+| `imageEditProcessor(processor)` | 使用第三方图片编辑处理器 |
+| `ImageProcessStore.activityProcessor(activityClass)` | 快速创建启动第三方 Activity 的处理器 |
+| `ImageProcessStore.EXTRA_REQUEST_ID` | 第三方 Activity 读取请求 id 的 key |
+| `ImageProcessStore.items(id)` | 获取本次需要处理的原始图片列表 |
+| `ImageProcessStore.success(id, result)` | 通知 picker 第三方处理成功 |
+| `ImageProcessStore.cancel(id)` | 通知 picker 第三方处理取消 |
+| `ImageProcessStore.error(id, error)` | 通知 picker 第三方处理失败 |
+| `ImageProcessStore.clear(id)` | 仅清理请求，不触发回调 |
+
+第三方处理完成后，结果仍会从 `start` 返回。第三方页面必须通过 `success`、`cancel` 或 `error` 之一结束请求。
+
+### 缓存
+
+| API | 说明 |
+| --- | --- |
+| `MediaSelector.preload(context, vararg types)` | 后台预查询媒体列表 |
+| `MediaSelector.cached(type)` | 获取已预加载或上次查询的首屏缓存 |
+| `MediaSelector.invalidateCache()` | 清空媒体列表缓存和文件扫描缓存 |
+
+拍照、保存新文件或外部媒体变化后，可调用 `invalidateCache()` 强制下次重新查询。
 
 ## 注意事项
 
-- 取消选择时不会触发 `start {}` 回调。
+- 取消选择时不会触发 `start` 回调。
 - `filePath` 在部分系统选择器或云端文件场景可能为空，建议优先使用 `uri`。
-- 压缩器自定义实现中必须调用 `callback.onSuccess()` 或 `callback.onError()`，否则 loading 不会结束。
+- 压缩器自定义实现中必须调用 `callback.onSuccess()` 或 `callback.onError()`。
 - 圆形裁剪会强制输出 PNG，以保留透明区域。
 - 使用第三方裁剪/编辑时，第三方页面必须通过 `ImageProcessStore.success/cancel/error` 回传结果。
