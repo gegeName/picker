@@ -44,6 +44,7 @@ import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.FallbackStrategy
 import androidx.camera.video.PendingRecording
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
@@ -307,34 +308,60 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(previewView.surfaceProvider)
             }
-            imageCapture = ImageCapture.Builder()
-                .setFlashMode(ImageCapture.FLASH_MODE_OFF)
-                .setTargetRotation(deviceRotation)
-                .build()
             val recorder = Recorder.Builder()
-                .setQualitySelector(QualitySelector.from(Quality.HD))
+                .setQualitySelector(
+                    QualitySelector.from(
+                        Quality.HD,
+                        FallbackStrategy.lowerQualityOrHigherThan(Quality.SD),
+                    )
+                )
                 .build()
-            videoCapture = VideoCapture.withOutput(recorder).also {
-                it.targetRotation = deviceRotation
-            }
 
             runCatching {
-                val image = imageCapture ?: return@runCatching
-                val video = videoCapture ?: return@runCatching
                 provider.unbindAll()
-                camera = provider.bindToLifecycle(
-                    this,
-                    CameraSelector.DEFAULT_BACK_CAMERA,
-                    preview,
-                    image,
-                    video,
-                )
+                val selector = cameraSelector(provider)
+                if (mode == CameraCaptureMode.PHOTO) {
+                    val image = ImageCapture.Builder()
+                        .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                        .setTargetRotation(deviceRotation)
+                        .build()
+                    imageCapture = image
+                    videoCapture = null
+                    camera = provider.bindToLifecycle(
+                        this,
+                        selector,
+                        preview,
+                        image,
+                    )
+                } else {
+                    imageCapture = null
+                    val video = VideoCapture.withOutput(recorder).also {
+                        it.targetRotation = deviceRotation
+                    }
+                    videoCapture = video
+                    camera = provider.bindToLifecycle(
+                        this,
+                        selector,
+                        preview,
+                        video,
+                    )
+                }
                 observeTorch()
             }.onFailure {
                 Toast.makeText(this, R.string.picker_camera_error, Toast.LENGTH_SHORT).show()
                 finish()
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun cameraSelector(provider: ProcessCameraProvider): CameraSelector {
+        return when {
+            provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ->
+                CameraSelector.DEFAULT_BACK_CAMERA
+            provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ->
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            else -> throw IllegalStateException("No available camera")
+        }
     }
 
     private fun observeTorch() {

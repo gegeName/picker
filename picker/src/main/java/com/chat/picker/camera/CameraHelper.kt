@@ -111,28 +111,55 @@ internal object CameraHelper {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
+    private fun hasLegacyWritePermission(ctx: Context): Boolean =
+        Build.VERSION.SDK_INT > Build.VERSION_CODES.P ||
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+            PackageManager.PERMISSION_GRANTED
+
+    fun hasPhotoPermissions(ctx: Context): Boolean =
+        hasCameraPermission(ctx) && hasLegacyWritePermission(ctx)
+
     fun hasVideoPermissions(ctx: Context): Boolean =
         hasCameraPermission(ctx) &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
-            PackageManager.PERMISSION_GRANTED
+            PackageManager.PERMISSION_GRANTED &&
+            hasLegacyWritePermission(ctx)
+
+    fun photoPermissions(): Array<String> =
+        buildList {
+            add(Manifest.permission.CAMERA)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
+
+    fun videoPermissions(): Array<String> =
+        buildList {
+            add(Manifest.permission.CAMERA)
+            add(Manifest.permission.RECORD_AUDIO)
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
+        }.toTypedArray()
 
     fun take(
         activity: ComponentActivity,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
     ) {
-        if (hasCameraPermission(activity)) {
+        if (hasPhotoPermissions(activity)) {
             doLaunchCamera(activity, onResult); return
         }
-        lateinit var permLauncher: ActivityResultLauncher<String>
+        lateinit var permLauncher: ActivityResultLauncher<Array<String>>
         permLauncher = activity.activityResultRegistry.register(
             "picker_camera_perm_${System.currentTimeMillis()}",
-            ActivityResultContracts.RequestPermission(),
-        ) { granted ->
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { grants ->
             permLauncher.unregister()
+            val granted = photoPermissions().all { grants[it] == true }
             if (granted) doLaunchCamera(activity, onResult)
             else onResult(false, null, null)
         }
-        permLauncher.launch(Manifest.permission.CAMERA)
+        permLauncher.launch(photoPermissions())
     }
 
     fun record(
@@ -151,12 +178,11 @@ internal object CameraHelper {
             ActivityResultContracts.RequestMultiplePermissions(),
         ) { grants ->
             permLauncher.unregister()
-            val granted = grants[Manifest.permission.CAMERA] == true &&
-                grants[Manifest.permission.RECORD_AUDIO] == true
+            val granted = videoPermissions().all { grants[it] == true }
             if (granted) doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult)
             else onResult(false, null, null)
         }
-        permLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        permLauncher.launch(videoPermissions())
     }
 
     private fun doLaunchCamera(

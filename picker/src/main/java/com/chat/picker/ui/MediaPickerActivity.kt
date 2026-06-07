@@ -132,10 +132,9 @@ class MediaPickerActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         val granted = if (shouldRecordVideoFromCameraEntry()) {
-            grants[android.Manifest.permission.CAMERA] == true &&
-                grants[android.Manifest.permission.RECORD_AUDIO] == true
+            CameraHelper.videoPermissions().all { grants[it] == true }
         } else {
-            grants[android.Manifest.permission.CAMERA] == true
+            CameraHelper.photoPermissions().all { grants[it] == true }
         }
         if (granted) doLaunchCamera()
         else Toast.makeText(
@@ -155,16 +154,16 @@ class MediaPickerActivity : AppCompatActivity() {
         val hasPermission = if (shouldRecordVideoFromCameraEntry()) {
             CameraHelper.hasVideoPermissions(this)
         } else {
-            CameraHelper.hasCameraPermission(this)
+            CameraHelper.hasPhotoPermissions(this)
         }
         if (hasPermission) {
             doLaunchCamera()
         } else {
             cameraPermLauncher.launch(
                 if (shouldRecordVideoFromCameraEntry()) {
-                    arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO)
+                    CameraHelper.videoPermissions()
                 } else {
-                    arrayOf(android.Manifest.permission.CAMERA)
+                    CameraHelper.photoPermissions()
                 }
             )
         }
