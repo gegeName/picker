@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.chat.picker.R
+import com.chat.picker.api.CameraCaptureMode
 import com.chat.picker.api.ImageProcessCallback
 import com.chat.picker.api.MediaSelector
 import com.chat.picker.api.SelectionConfig
@@ -101,43 +102,25 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private var pendingCamera: CameraHelper.Pending? = null
-    private val cameraLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
+    private val customCameraLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
         val p = pendingCamera ?: return@registerForActivityResult
         pendingCamera = null
         val file = File(p.filePath)
         val exists = file.exists()
         val len = if (exists) file.length() else 0L
         PickerLog.d(
-            "in-picker TakePicture success=$success exists=$exists size=$len path=${p.filePath}"
+            "in-picker camera result=${result.resultCode} exists=$exists size=$len path=${p.filePath}"
         )
-        val ok = success && exists && len > 0
+        val ok = result.resultCode == RESULT_OK && exists && len > 0
         if (ok) {
             p.onSuccess()
-            val entity = CameraHelper.makeEntity(p.filePath, p.uri)
-            insertCapturedMedia(entity)
-            MediaSelector.invalidateCache()
-        } else {
-            p.onFail()
-        }
-    }
-
-    private val videoCameraLauncher = registerForActivityResult(
-        ActivityResultContracts.CaptureVideo()
-    ) { success ->
-        val p = pendingCamera ?: return@registerForActivityResult
-        pendingCamera = null
-        val file = File(p.filePath)
-        val exists = file.exists()
-        val len = if (exists) file.length() else 0L
-        PickerLog.d(
-            "in-picker CaptureVideo success=$success exists=$exists size=$len path=${p.filePath}"
-        )
-        val ok = success && exists && len > 0
-        if (ok) {
-            p.onSuccess()
-            val entity = CameraHelper.makeVideoEntity(p.filePath, p.uri)
+            val entity = if (shouldRecordVideoFromCameraEntry()) {
+                CameraHelper.makeVideoEntity(p.filePath, p.uri)
+            } else {
+                CameraHelper.makeEntity(p.filePath, p.uri)
+            }
             insertCapturedMedia(entity)
             MediaSelector.invalidateCache()
         } else {
@@ -146,19 +129,44 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private val cameraPermLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = if (shouldRecordVideoFromCameraEntry()) {
+            grants[android.Manifest.permission.CAMERA] == true &&
+                grants[android.Manifest.permission.RECORD_AUDIO] == true
+        } else {
+            grants[android.Manifest.permission.CAMERA] == true
+        }
         if (granted) doLaunchCamera()
         else Toast.makeText(
-            this, getString(R.string.picker_camera_permission_required), Toast.LENGTH_SHORT
+            this,
+            getString(
+                if (shouldRecordVideoFromCameraEntry()) {
+                    R.string.picker_video_permission_required
+                } else {
+                    R.string.picker_camera_permission_required
+                },
+            ),
+            Toast.LENGTH_SHORT
         ).show()
     }
 
     private fun launchCamera() {
-        if (CameraHelper.hasCameraPermission(this)) {
+        val hasPermission = if (shouldRecordVideoFromCameraEntry()) {
+            CameraHelper.hasVideoPermissions(this)
+        } else {
+            CameraHelper.hasCameraPermission(this)
+        }
+        if (hasPermission) {
             doLaunchCamera()
         } else {
-            cameraPermLauncher.launch(android.Manifest.permission.CAMERA)
+            cameraPermLauncher.launch(
+                if (shouldRecordVideoFromCameraEntry()) {
+                    arrayOf(android.Manifest.permission.CAMERA, android.Manifest.permission.RECORD_AUDIO)
+                } else {
+                    arrayOf(android.Manifest.permission.CAMERA)
+                }
+            )
         }
     }
 
@@ -169,15 +177,26 @@ class MediaPickerActivity : AppCompatActivity() {
             CameraHelper.prepare(this)
         }
         pendingCamera = p
-        if (shouldRecordVideoFromCameraEntry()) {
-            videoCameraLauncher.launch(p.uri)
-        } else {
-            cameraLauncher.launch(p.uri)
-        }
+        customCameraLauncher.launch(
+            CameraCaptureActivity.createIntent(
+                this,
+                mode = if (shouldRecordVideoFromCameraEntry()) {
+                    CameraCaptureMode.VIDEO
+                } else {
+                    CameraCaptureMode.PHOTO
+                },
+                filePath = p.filePath,
+                uri = p.uri,
+                maxDurationMs = config.cameraRecordDurationMs,
+                countDown = config.cameraRecordCountDown,
+                trigger = config.cameraRecordTrigger,
+            )
+        )
     }
 
     private fun shouldRecordVideoFromCameraEntry(): Boolean =
-        config.filter.type == MediaType.VIDEO
+        config.cameraCaptureMode == CameraCaptureMode.VIDEO ||
+            config.filter.type == MediaType.VIDEO
 
     private fun insertCapturedMedia(entity: MediaEntity) {
         PickerLog.d(

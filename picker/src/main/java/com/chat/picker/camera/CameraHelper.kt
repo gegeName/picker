@@ -1,8 +1,10 @@
 package com.chat.picker.camera
 
 import android.Manifest
+import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
@@ -15,8 +17,11 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.chat.picker.api.CameraCaptureMode
+import com.chat.picker.api.CameraRecordTrigger
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaType
+import com.chat.picker.ui.CameraCaptureActivity
 import com.chat.picker.util.PickerLog
 import java.io.File
 
@@ -106,6 +111,11 @@ internal object CameraHelper {
         ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
 
+    fun hasVideoPermissions(ctx: Context): Boolean =
+        hasCameraPermission(ctx) &&
+            ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+
     fun take(
         activity: ComponentActivity,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
@@ -127,21 +137,26 @@ internal object CameraHelper {
 
     fun record(
         activity: ComponentActivity,
+        maxDurationMs: Long = 0L,
+        countDown: Boolean = false,
+        trigger: CameraRecordTrigger = CameraRecordTrigger.CLICK,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
     ) {
-        if (hasCameraPermission(activity)) {
-            doLaunchVideo(activity, onResult); return
+        if (hasVideoPermissions(activity)) {
+            doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult); return
         }
-        lateinit var permLauncher: ActivityResultLauncher<String>
+        lateinit var permLauncher: ActivityResultLauncher<Array<String>>
         permLauncher = activity.activityResultRegistry.register(
             "picker_video_perm_${System.currentTimeMillis()}",
-            ActivityResultContracts.RequestPermission(),
-        ) { granted ->
+            ActivityResultContracts.RequestMultiplePermissions(),
+        ) { grants ->
             permLauncher.unregister()
-            if (granted) doLaunchVideo(activity, onResult)
+            val granted = grants[Manifest.permission.CAMERA] == true &&
+                grants[Manifest.permission.RECORD_AUDIO] == true
+            if (granted) doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult)
             else onResult(false, null, null)
         }
-        permLauncher.launch(Manifest.permission.CAMERA)
+        permLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
     }
 
     private fun doLaunchCamera(
@@ -149,19 +164,19 @@ internal object CameraHelper {
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
     ) {
         val pending = prepare(activity)
-        lateinit var launcher: ActivityResultLauncher<Uri>
+        lateinit var launcher: ActivityResultLauncher<Intent>
         launcher = activity.activityResultRegistry.register(
             "picker_camera_${System.currentTimeMillis()}",
-            ActivityResultContracts.TakePicture(),
-        ) { success ->
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
             launcher.unregister()
             val file = File(pending.filePath)
             val exists = file.exists()
             val len = if (exists) file.length() else 0L
             PickerLog.d(
-                "TakePicture result success=$success exists=$exists size=$len path=${pending.filePath}"
+                "Custom photo result=${result.resultCode} exists=$exists size=$len path=${pending.filePath}"
             )
-            val ok = exists && len > 0
+            val ok = result.resultCode == Activity.RESULT_OK && exists && len > 0
             if (ok) {
                 pending.onSuccess()
                 onResult(true, pending.filePath, pending.uri)
@@ -170,27 +185,40 @@ internal object CameraHelper {
                 onResult(false, null, null)
             }
         }
-        launcher.launch(pending.uri)
+        launcher.launch(
+            CameraCaptureActivity.createIntent(
+                activity,
+                mode = CameraCaptureMode.PHOTO,
+                filePath = pending.filePath,
+                uri = pending.uri,
+                maxDurationMs = 0L,
+                countDown = false,
+                trigger = CameraRecordTrigger.CLICK,
+            )
+        )
     }
 
     private fun doLaunchVideo(
         activity: ComponentActivity,
+        maxDurationMs: Long,
+        countDown: Boolean,
+        trigger: CameraRecordTrigger,
         onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
     ) {
         val pending = prepareVideo(activity)
-        lateinit var launcher: ActivityResultLauncher<Uri>
+        lateinit var launcher: ActivityResultLauncher<Intent>
         launcher = activity.activityResultRegistry.register(
             "picker_video_${System.currentTimeMillis()}",
-            ActivityResultContracts.CaptureVideo(),
-        ) { success ->
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
             launcher.unregister()
             val file = File(pending.filePath)
             val exists = file.exists()
             val len = if (exists) file.length() else 0L
             PickerLog.d(
-                "CaptureVideo result success=$success exists=$exists size=$len path=${pending.filePath}"
+                "Custom video result=${result.resultCode} exists=$exists size=$len path=${pending.filePath}"
             )
-            val ok = exists && len > 0
+            val ok = result.resultCode == Activity.RESULT_OK && exists && len > 0
             if (ok) {
                 pending.onSuccess()
                 onResult(true, pending.filePath, pending.uri)
@@ -199,7 +227,17 @@ internal object CameraHelper {
                 onResult(false, null, null)
             }
         }
-        launcher.launch(pending.uri)
+        launcher.launch(
+            CameraCaptureActivity.createIntent(
+                activity,
+                mode = CameraCaptureMode.VIDEO,
+                filePath = pending.filePath,
+                uri = pending.uri,
+                maxDurationMs = maxDurationMs,
+                countDown = countDown,
+                trigger = trigger,
+            )
+        )
     }
 
     private fun registerToMediaStore(ctx: Context, file: File) {

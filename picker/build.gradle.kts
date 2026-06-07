@@ -31,6 +31,11 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.camera:camera-core:1.6.1")
+    implementation("androidx.camera:camera-camera2:1.6.1")
+    implementation("androidx.camera:camera-lifecycle:1.6.1")
+    implementation("androidx.camera:camera-video:1.6.1")
+    implementation("androidx.camera:camera-view:1.6.1")
 
     // OkHttp 用于 MediaUploader
     api("com.squareup.okhttp3:okhttp:5.3.2")

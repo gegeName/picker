@@ -127,7 +127,12 @@ internal object MediaSelectorInternal {
     ) {
         pendingListener = listener
         pendingConfig = cfg
-        CameraHelper.record(activity) { ok, path, uri ->
+        CameraHelper.record(
+            activity,
+            cfg.cameraRecordDurationMs,
+            cfg.cameraRecordCountDown,
+            cfg.cameraRecordTrigger,
+        ) { ok, path, uri ->
             if (!ok || path == null || uri == null) {
                 clearRuntimeState()
                 listener.onResult(emptyList())

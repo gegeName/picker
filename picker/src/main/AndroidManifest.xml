@@ -9,9 +9,11 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <application>
+    <application
+        android:supportsRtl="true">
         <activity
             android:name="com.chat.picker.ui.MediaPickerActivity"
             android:configChanges="orientation|screenSize|keyboardHidden"
@@ -29,6 +31,13 @@
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:exported="false"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity
+            android:name="com.chat.picker.ui.CameraCaptureActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.ChatPicker.Camera" />
 
         <provider
             android:name=".api.PickerProvider"

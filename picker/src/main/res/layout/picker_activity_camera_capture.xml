@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/camera_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:ignore="MergeRootFrame">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/camera_preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:scaleType="fillCenter" />
+
+    <ImageView
+        android:id="@+id/camera_result_photo"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:importantForAccessibility="no"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/camera_result_video_bg"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:visibility="gone" />
+
+    <TextureView
+        android:id="@+id/camera_result_video"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/camera_result_video_thumb"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@android:color/black"
+        android:importantForAccessibility="no"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/camera_video_play_toggle"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:background="@drawable/picker_bg_preview_play_button"
+        android:contentDescription="@string/picker_camera_play"
+        android:padding="20dp"
+        android:src="@drawable/picker_ic_play"
+        android:visibility="gone" />
+
+    <View
+        android:id="@+id/camera_top_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="168dp"
+        android:layout_gravity="top"
+        android:background="@drawable/picker_bg_camera_top_scrim" />
+
+    <View
+        android:id="@+id/camera_bottom_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="244dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/picker_bg_camera_bottom_scrim" />
+
+    <LinearLayout
+        android:id="@+id/camera_top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="28dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:id="@+id/camera_close"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:background="@drawable/picker_bg_camera_chip"
+            android:gravity="center"
+            android:text="@string/picker_cancel"
+            android:textColor="@android:color/white"
+            android:textSize="13sp" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/camera_flash_auto"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/picker_bg_camera_chip"
+            android:gravity="center"
+            android:text="@string/picker_camera_flash_off"
+            android:textColor="@android:color/white"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/camera_torch"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:background="@drawable/picker_bg_camera_chip"
+            android:gravity="center"
+            android:text="@string/picker_camera_torch_off"
+            android:textColor="@android:color/white"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/camera_mode_label"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="188dp"
+        android:background="@drawable/picker_bg_camera_chip"
+        android:gravity="center"
+        android:minWidth="76dp"
+        android:text="@string/picker_camera_photo"
+        android:textColor="@android:color/white"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/camera_timer"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="140dp"
+        android:background="@drawable/picker_bg_camera_chip"
+        android:gravity="center"
+        android:minWidth="76dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:text="@string/picker_camera_timer_zero"
+        android:textColor="@android:color/white"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/camera_capture"
+        android:layout_width="82dp"
+        android:layout_height="82dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="48dp"
+        android:background="@drawable/picker_bg_camera_button"
+        android:gravity="center"
+        android:text=""
+        android:textColor="@android:color/white"
+        android:textSize="12sp" />
+
+    <LinearLayout
+        android:id="@+id/camera_result_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="58dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/camera_reset"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginEnd="10dp"
+            android:layout_weight="1"
+            android:background="@drawable/picker_bg_camera_retake"
+            android:gravity="center"
+            android:text="@string/picker_camera_retake"
+            android:textColor="#202124"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/camera_done"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:background="@drawable/picker_bg_camera_done"
+            android:gravity="center"
+            android:text="@string/picker_camera_done"
+            android:textColor="@android:color/white"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</FrameLayout>

@@ -89,6 +89,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun takePhoto() = apply {
         startWithCamera = true
         startWithVideoCamera = false
+        cfg.cameraCaptureMode = CameraCaptureMode.PHOTO
         type(MediaType.IMAGE)
         cfg.maxCount = 1
         cfg.enableMultiSelect = false
@@ -98,10 +99,37 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun takeVideo() = apply {
         startWithVideoCamera = true
         startWithCamera = false
+        cfg.cameraCaptureMode = CameraCaptureMode.VIDEO
         type(MediaType.VIDEO)
         cfg.maxCount = 1
         cfg.enableMultiSelect = false
     }
+
+    fun cameraMode(mode: CameraCaptureMode) = apply {
+        cfg.cameraCaptureMode = mode
+    }
+
+    fun photoMode() = cameraMode(CameraCaptureMode.PHOTO)
+
+    fun videoMode() = cameraMode(CameraCaptureMode.VIDEO)
+
+    @JvmOverloads
+    fun recordDurationMs(durationMs: Long, countDown: Boolean = false) = apply {
+        cfg.cameraRecordDurationMs = durationMs.coerceAtLeast(0L)
+        cfg.cameraRecordCountDown = countDown
+    }
+
+    fun recordCountDown(enable: Boolean) = apply {
+        cfg.cameraRecordCountDown = enable
+    }
+
+    fun recordTrigger(trigger: CameraRecordTrigger) = apply {
+        cfg.cameraRecordTrigger = trigger
+    }
+
+    fun clickRecord() = recordTrigger(CameraRecordTrigger.CLICK)
+
+    fun longPressRecord() = recordTrigger(CameraRecordTrigger.LONG_PRESS)
 
     /**
      * 开启图片裁剪；裁剪入口保持单张图片处理，只显示裁剪相关功能。
@@ -429,6 +457,21 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             }
         }
 
+        @JvmStatic
+        @JvmOverloads
+        fun takeVideo(
+            activity: ComponentActivity,
+            maxDurationMs: Long,
+            countDown: Boolean = false,
+            trigger: CameraRecordTrigger = CameraRecordTrigger.CLICK,
+            listener: OnVideoRecordedListener,
+        ) {
+            CameraHelper.record(activity, maxDurationMs, countDown, trigger) { ok, path, uri ->
+                if (ok) invalidateCache()
+                listener.onResult(ok, path, uri)
+            }
+        }
+
         /**
          * Fragment 版独立录视频入口；行为同 [takeVideo] Activity 版本。
          * @param fragment 用于获取宿主 Activity 并启动系统相机的 Fragment。
@@ -437,6 +480,18 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         @JvmStatic
         fun takeVideo(fragment: Fragment, listener: OnVideoRecordedListener) {
             takeVideo(fragment.requireActivity(), listener)
+        }
+
+        @JvmStatic
+        @JvmOverloads
+        fun takeVideo(
+            fragment: Fragment,
+            maxDurationMs: Long,
+            countDown: Boolean = false,
+            trigger: CameraRecordTrigger = CameraRecordTrigger.CLICK,
+            listener: OnVideoRecordedListener,
+        ) {
+            takeVideo(fragment.requireActivity(), maxDurationMs, countDown, trigger, listener)
         }
 
 

@@ -42,4 +42,24 @@
     <string name="picker_done_one">单张完成</string>
     <string name="picker_crop_failed">裁剪失败</string>
     <string name="picker_crop_save_failed">保存裁剪结果失败</string>
+    <string name="picker_camera_photo">拍照</string>
+    <string name="picker_camera_video">录像</string>
+    <string name="picker_camera_video_long_press">长按录像</string>
+    <string name="picker_camera_timer_zero">00:00</string>
+    <string name="picker_camera_play">播放</string>
+    <string name="picker_camera_pause_preview">暂停</string>
+    <string name="picker_camera_flash_auto">自动</string>
+    <string name="picker_camera_flash_off">闪光关</string>
+    <string name="picker_camera_torch_on">常亮开</string>
+    <string name="picker_camera_torch_off">常亮关</string>
+    <string name="picker_camera_record">录制</string>
+    <string name="picker_camera_stop">停止</string>
+    <string name="picker_camera_pause">暂停</string>
+    <string name="picker_camera_resume">继续</string>
+    <string name="picker_camera_reset">重置</string>
+    <string name="picker_camera_retake_photo">重拍</string>
+    <string name="picker_camera_retake">重录</string>
+    <string name="picker_camera_done">完成</string>
+    <string name="picker_camera_error">相机不可用</string>
+    <string name="picker_video_permission_required">录像需要相机和麦克风权限</string>
 </resources>

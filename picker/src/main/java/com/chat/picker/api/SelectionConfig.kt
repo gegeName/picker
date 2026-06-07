@@ -45,6 +45,10 @@ class SelectionConfig {
 
     /** 图片裁剪配置；开启后仅单张图片选择会进入裁剪页。 */
     var cropConfig: CropConfig = CropConfig()
+    var cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.PHOTO
+    var cameraRecordDurationMs: Long = 0L
+    var cameraRecordCountDown: Boolean = false
+    var cameraRecordTrigger: CameraRecordTrigger = CameraRecordTrigger.CLICK
     var imageEditEnabled: Boolean = false
     var imageCropProcessor: IImageProcessProcessor? = null
     var imageEditProcessor: IImageProcessProcessor? = null
@@ -70,6 +74,10 @@ class CropConfig {
 enum class CropOutputFormat { JPEG, PNG }
 
 enum class CropShape { RECTANGLE, OVAL }
+
+enum class CameraCaptureMode { PHOTO, VIDEO }
+
+enum class CameraRecordTrigger { CLICK, LONG_PRESS }
 
 fun interface OnPickResultListener {
     fun onResult(result: List<MediaEntity>)
