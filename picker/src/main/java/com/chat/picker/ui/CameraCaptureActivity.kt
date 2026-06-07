@@ -2,7 +2,10 @@ package com.chat.picker.ui
 
 import android.annotation.SuppressLint
 import android.Manifest
+import android.animation.ValueAnimator
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorFilter
 import android.graphics.SurfaceTexture
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
@@ -10,6 +13,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.RectF
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -69,6 +76,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private lateinit var flashButton: TextView
     private lateinit var torchButton: TextView
     private lateinit var captureButton: TextView
+    private lateinit var captureDrawable: CaptureButtonDrawable
     private lateinit var actionPanel: View
     private lateinit var resetButton: TextView
 
@@ -155,6 +163,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         flashButton = findViewById(R.id.camera_flash_auto)
         torchButton = findViewById(R.id.camera_torch)
         captureButton = findViewById(R.id.camera_capture)
+        captureDrawable = CaptureButtonDrawable(this)
+        captureButton.background = captureDrawable
         actionPanel = findViewById(R.id.camera_result_actions)
         resetButton = findViewById(R.id.camera_reset)
 
@@ -332,12 +342,13 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                 R.string.picker_camera_video
             },
         )
-        captureButton.setBackgroundResource(
+        captureDrawable.setMode(
             if (mode == CameraCaptureMode.PHOTO) {
-                R.drawable.picker_bg_camera_button
+                CaptureButtonDrawable.Mode.PHOTO
             } else {
-                R.drawable.picker_bg_record_button
+                CaptureButtonDrawable.Mode.VIDEO_IDLE
             },
+            animate = false,
         )
         actionPanel.visibility = View.GONE
         timer.visibility = if (mode == CameraCaptureMode.VIDEO) View.VISIBLE else View.INVISIBLE
@@ -439,7 +450,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         deleteAfterFinalize = false
         captureButton.visibility = View.VISIBLE
         captureButton.isEnabled = true
-        captureButton.setBackgroundResource(R.drawable.picker_bg_recording_button)
+        captureDrawable.setMode(CaptureButtonDrawable.Mode.VIDEO_RECORDING, animate = true)
         actionPanel.visibility = View.GONE
         updateTimer()
     }
@@ -459,7 +470,15 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         if (isFinishing || isDestroyed) return
         captureButton.isEnabled = true
         captureButton.visibility = if (ok) View.GONE else View.VISIBLE
-        actionPanel.visibility = if (ok) View.VISIBLE else View.GONE
+        if (ok) {
+            showResultActionsAnimated()
+        } else {
+            if (mode == CameraCaptureMode.VIDEO) {
+                captureDrawable.setMode(CaptureButtonDrawable.Mode.VIDEO_IDLE, animate = true)
+            }
+            actionPanel.animate().cancel()
+            actionPanel.visibility = View.GONE
+        }
         resetButton.text = getString(
             if (mode == CameraCaptureMode.PHOTO) {
                 R.string.picker_camera_retake_photo
@@ -503,7 +522,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         prepareVideoPreviewPlayer(file, playWhenReady = false)
         isPreviewVideoPlaying = false
         updateVideoPreviewToggle()
-        videoPlayToggle.visibility = View.VISIBLE
+        showVideoPlayToggleAnimated()
         videoPlayToggle.bringToFront()
         previewView.visibility = View.GONE
         topScrim.visibility = View.GONE
@@ -516,9 +535,16 @@ internal class CameraCaptureActivity : AppCompatActivity() {
 
     private fun clearResultPreview() {
         stopVideoPreview()
+        actionPanel.animate().cancel()
+        videoPlayToggle.animate().cancel()
         resultVideoBg.visibility = View.GONE
         resultVideo.visibility = View.GONE
         resultVideoThumb.visibility = View.GONE
+        actionPanel.alpha = 1f
+        actionPanel.translationY = 0f
+        videoPlayToggle.alpha = 1f
+        videoPlayToggle.scaleX = 1f
+        videoPlayToggle.scaleY = 1f
         videoPlayToggle.visibility = View.GONE
         resultPhoto.visibility = View.GONE
         resultPhoto.setImageDrawable(null)
@@ -664,15 +690,45 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         accumulatedMs = 0L
         captureButton.isEnabled = true
         captureButton.visibility = View.VISIBLE
-        captureButton.setBackgroundResource(
+        captureDrawable.setMode(
             if (mode == CameraCaptureMode.PHOTO) {
-                R.drawable.picker_bg_camera_button
+                CaptureButtonDrawable.Mode.PHOTO
             } else {
-                R.drawable.picker_bg_record_button
+                CaptureButtonDrawable.Mode.VIDEO_IDLE
             },
+            animate = false,
         )
         actionPanel.visibility = View.GONE
         updateTimer()
+    }
+
+    private fun showResultActionsAnimated() {
+        actionPanel.animate().cancel()
+        actionPanel.visibility = View.VISIBLE
+        actionPanel.alpha = 0f
+        actionPanel.translationY = dp(22f)
+        actionPanel.animate()
+            .alpha(1f)
+            .translationY(0f)
+            .setDuration(220L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
+    }
+
+    private fun showVideoPlayToggleAnimated() {
+        videoPlayToggle.animate().cancel()
+        videoPlayToggle.visibility = View.VISIBLE
+        videoPlayToggle.alpha = 0f
+        videoPlayToggle.scaleX = 0.82f
+        videoPlayToggle.scaleY = 0.82f
+        videoPlayToggle.animate()
+            .alpha(1f)
+            .scaleX(1f)
+            .scaleY(1f)
+            .setStartDelay(80L)
+            .setDuration(180L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
     }
 
     private fun finishWithSuccess() {
@@ -728,6 +784,100 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private fun View.updateBottomMargin(bottom: Int) {
         updateLayoutParams<ViewGroup.MarginLayoutParams> {
             bottomMargin = bottom
+        }
+    }
+
+    private fun dp(value: Float): Float = value * resources.displayMetrics.density
+
+    private class CaptureButtonDrawable(context: Context) : Drawable() {
+        enum class Mode { PHOTO, VIDEO_IDLE, VIDEO_RECORDING }
+
+        private val density = context.resources.displayMetrics.density
+        private val outerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0x33FFFFFF
+            style = Paint.Style.FILL
+        }
+        private val innerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+        }
+        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = 0xFFE6E6E6.toInt()
+            style = Paint.Style.STROKE
+            strokeWidth = dp(2f)
+        }
+        private val rect = RectF()
+        private var mode = Mode.PHOTO
+        private var recordShapeProgress = 0f
+        private var animator: ValueAnimator? = null
+
+        fun setMode(next: Mode, animate: Boolean) {
+            animator?.cancel()
+            mode = next
+            val target = if (next == Mode.VIDEO_RECORDING) 1f else 0f
+            if (!animate || next == Mode.PHOTO) {
+                recordShapeProgress = target
+                invalidateSelf()
+                return
+            }
+            animator = ValueAnimator.ofFloat(recordShapeProgress, target).apply {
+                duration = 190L
+                interpolator = android.view.animation.DecelerateInterpolator()
+                addUpdateListener {
+                    recordShapeProgress = it.animatedValue as Float
+                    invalidateSelf()
+                }
+                start()
+            }
+        }
+
+        override fun draw(canvas: Canvas) {
+            val size = minOf(bounds.width(), bounds.height()).toFloat()
+            if (size <= 0f) return
+            val cx = bounds.exactCenterX()
+            val cy = bounds.exactCenterY()
+            val outerRadius = size / 2f
+            canvas.drawCircle(cx, cy, outerRadius, outerPaint)
+
+            if (mode == Mode.PHOTO) {
+                val inset = dp(8f)
+                rect.set(bounds)
+                rect.inset(inset, inset)
+                innerPaint.color = Color.WHITE
+                canvas.drawOval(rect, innerPaint)
+                canvas.drawOval(rect, strokePaint)
+                return
+            }
+
+            val inset = lerp(dp(10f), dp(12f), recordShapeProgress)
+            rect.set(bounds)
+            rect.inset(inset, inset)
+            innerPaint.color = 0xFFE53935.toInt()
+            val circleRadius = rect.width() / 2f
+            val cornerRadius = lerp(circleRadius, dp(12f), recordShapeProgress)
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, innerPaint)
+        }
+
+        override fun setAlpha(alpha: Int) {
+            outerPaint.alpha = alpha
+            innerPaint.alpha = alpha
+            strokePaint.alpha = alpha
+            invalidateSelf()
+        }
+
+        override fun setColorFilter(colorFilter: ColorFilter?) {
+            outerPaint.colorFilter = colorFilter
+            innerPaint.colorFilter = colorFilter
+            strokePaint.colorFilter = colorFilter
+            invalidateSelf()
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+
+        private fun dp(value: Float): Float = value * density
+
+        private fun lerp(start: Float, end: Float, fraction: Float): Float {
+            return start + (end - start) * fraction.coerceIn(0f, 1f)
         }
     }
 
