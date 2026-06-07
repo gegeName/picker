@@ -80,8 +80,11 @@ dependencies {
 ## 环境要求
 
 - minSdk 21+
+- compileSdk 36+
 - AndroidX
 - Java 11
+
+`compileSdk` 只影响编译环境；接入方不需要因此同步提升 `targetSdk`。
 
 库内已声明媒体读取、相机、FileProvider 等基础配置，正常情况下会自动合并到宿主 `AndroidManifest.xml`。
 
