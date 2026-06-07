@@ -216,7 +216,7 @@ class MediaPickerActivity : AppCompatActivity() {
                 Toast.LENGTH_SHORT
             ).show()
         }
-        adapter?.submitList(buildDisplayList(Selection.all))
+        submitMediaList()
         updateConfirmButton()
     }
 
@@ -352,7 +352,7 @@ class MediaPickerActivity : AppCompatActivity() {
         }
         recycler.adapter = concat
         recycler.itemAnimator = null
-        adapter?.submitList(buildDisplayList(Selection.all))
+        submitMediaList()
         restoreFooterState()
         btnToggle.text = getString(
             if (isGrid) R.string.picker_toggle_list
@@ -445,7 +445,7 @@ class MediaPickerActivity : AppCompatActivity() {
         Selection.all.clear()
         footerAdapter?.setState(FooterAdapter.State.HIDDEN)
         seedPreSelectedAtTop()
-        adapter?.submitList(buildDisplayList(Selection.all))
+        submitMediaList()
 
         val isCanonical = config.filter.mimeTypes.isEmpty() && config.filter.extraSelection == null
         val cached = MediaSelector.cached(config.filter.type)
@@ -489,10 +489,11 @@ class MediaPickerActivity : AppCompatActivity() {
                         if (firstBatch) {
                             if (isCanonical) MediaSelector.putCache(config.filter.type, page)
                             dismissLoading()
-                            footerAdapter?.setState(FooterAdapter.State.LOADING)
                             firstBatch = false
                         }
-                        appendStream(page)
+                        val firstLoadedPage = currentOffset == 0
+                        appendStream(page, scrollToTop = firstLoadedPage)
+                        footerAdapter?.setState(FooterAdapter.State.LOADING)
                     }
                 },
             ) {
@@ -500,7 +501,9 @@ class MediaPickerActivity : AppCompatActivity() {
             }
             return
         }
-        footerAdapter?.setState(FooterAdapter.State.LOADING)
+        if (!isFirstPage) {
+            footerAdapter?.setState(FooterAdapter.State.LOADING)
+        }
         MediaRepository.queryAsync(
             applicationContext, config.filter,
             offset = offset, limit = pageSize,
@@ -514,11 +517,11 @@ class MediaPickerActivity : AppCompatActivity() {
         }
     }
 
-    private fun appendStream(page: List<MediaEntity>) {
+    private fun appendStream(page: List<MediaEntity>, scrollToTop: Boolean = false) {
         val newOnes = page.filter { loadedKeys.add(keyOf(it)) }
         if (newOnes.isNotEmpty()) {
             Selection.all.addAll(newOnes)
-            adapter?.submitList(buildDisplayList(Selection.all))
+            submitMediaList(scrollToTop = scrollToTop)
         }
         currentOffset += page.size
     }
@@ -537,10 +540,11 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun appendPage(page: List<MediaEntity>, fromCache: Boolean) {
         dismissLoading()
+        val firstLoadedPage = currentOffset == 0
         val newOnes = page.filter { loadedKeys.add(keyOf(it)) }
         if (newOnes.isNotEmpty()) {
             Selection.all.addAll(newOnes)
-            adapter?.submitList(buildDisplayList(Selection.all))
+            submitMediaList(scrollToTop = firstLoadedPage)
         }
         currentOffset += page.size
         hasMore = when {
@@ -559,6 +563,20 @@ class MediaPickerActivity : AppCompatActivity() {
         )
         emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
         updateConfirmButton()
+    }
+
+    private fun submitMediaList(scrollToTop: Boolean = false) {
+        adapter?.submitList(buildDisplayList(Selection.all)) {
+            if (scrollToTop) scrollListToTop()
+        }
+    }
+
+    private fun scrollListToTop() {
+        recycler.stopScroll()
+        when (val lm = recycler.layoutManager) {
+            is LinearLayoutManager -> lm.scrollToPositionWithOffset(0, 0)
+            else -> recycler.scrollToPosition(0)
+        }
     }
 
     private fun showLoading(text: String, firstLoad: Boolean = false) {
