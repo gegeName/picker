@@ -9,13 +9,17 @@ import android.media.MediaPlayer
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
@@ -38,6 +42,11 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
+import androidx.core.view.updatePadding
 import com.chat.picker.R
 import com.chat.picker.api.CameraCaptureMode
 import com.chat.picker.api.CameraRecordTrigger
@@ -108,6 +117,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
         readIntent()
         bindViews()
+        applyEdgeToEdgeInsets()
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 cancelAndFinish()
@@ -216,6 +226,59 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                 if (isPreviewVideoPlaying) resultVideoThumb.visibility = View.GONE
             }
         }
+    }
+
+    private fun applyEdgeToEdgeInsets() {
+        val root = findViewById<View>(R.id.camera_root)
+        val topBar = findViewById<View>(R.id.camera_top_bar)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        @Suppress("DEPRECATION")
+        window.statusBarColor = Color.TRANSPARENT
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("DEPRECATION")
+            window.navigationBarDividerColor = Color.TRANSPARENT
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        WindowCompat.getInsetsController(window, root).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+
+        val topInitTop = topBar.paddingTop
+        val topInitLeft = topBar.paddingLeft
+        val topInitRight = topBar.paddingRight
+        val actionInitBottom = actionPanel.paddingBottom
+        val actionInitLeft = actionPanel.paddingLeft
+        val actionInitRight = actionPanel.paddingRight
+        val captureInitBottom = captureButton.bottomMargin()
+        val timerInitBottom = timer.bottomMargin()
+        val modeInitBottom = modeLabel.bottomMargin()
+
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            val sys = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            topBar.updatePadding(
+                left = topInitLeft + sys.left,
+                top = topInitTop + sys.top,
+                right = topInitRight + sys.right,
+            )
+            actionPanel.updatePadding(
+                left = actionInitLeft + sys.left,
+                right = actionInitRight + sys.right,
+                bottom = actionInitBottom + sys.bottom,
+            )
+            captureButton.updateBottomMargin(captureInitBottom + sys.bottom)
+            timer.updateBottomMargin(timerInitBottom + sys.bottom)
+            modeLabel.updateBottomMargin(modeInitBottom + sys.bottom)
+            insets
+        }
+        ViewCompat.requestApplyInsets(root)
     }
 
     private fun startCamera() {
@@ -656,6 +719,16 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         val min = totalSec / 60L
         val sec = totalSec % 60L
         return "%02d:%02d".format(min, sec)
+    }
+
+    private fun View.bottomMargin(): Int {
+        return (layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin ?: 0
+    }
+
+    private fun View.updateBottomMargin(bottom: Int) {
+        updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = bottom
+        }
     }
 
     override fun onDestroy() {
