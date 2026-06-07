@@ -45,13 +45,17 @@ internal class VideoTranscoder(
 
             val srcW = srcFormat.getInteger(MediaFormat.KEY_WIDTH)
             val srcH = srcFormat.getInteger(MediaFormat.KEY_HEIGHT)
+            val rotation = rotationDegrees(srcFormat)
+            val swapDisplaySize = rotation == 90 || rotation == 270
+            val displayW = if (swapDisplaySize) srcH else srcW
+            val displayH = if (swapDisplaySize) srcW else srcH
             val durationUs = if (srcFormat.containsKey(MediaFormat.KEY_DURATION)) {
                 srcFormat.getLong(MediaFormat.KEY_DURATION)
             } else {
                 0L
             }
-            val (outW, outH) = targetSize(srcW, srcH)
-            if (outW >= srcW && outH >= srcH && srcLikelyLowBitrate(srcFormat)) {
+            val (outW, outH) = targetSize(displayW, displayH)
+            if (outW >= displayW && outH >= displayH && srcLikelyLowBitrate(srcFormat)) {
                 PickerLog.d("transcode: source already small, skip")
                 return null
             }
@@ -268,6 +272,16 @@ internal class VideoTranscoder(
         } else {
             false
         }
+
+    private fun rotationDegrees(format: MediaFormat): Int {
+        if (!format.containsKey(MediaFormat.KEY_ROTATION)) return 0
+        return when (format.getInteger(MediaFormat.KEY_ROTATION)) {
+            90 -> 90
+            180 -> 180
+            270 -> 270
+            else -> 0
+        }
+    }
 
     private fun selectTrack(extractor: MediaExtractor, prefix: String): Int {
         for (i in 0 until extractor.trackCount) {
