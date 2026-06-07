@@ -218,6 +218,11 @@ internal class CropImageToolHelper(
         host.invalidateView()
     }
 
+    fun setDefaultTextColor(color: Int) {
+        currentTextColor = color
+        host.invalidateView()
+    }
+
     fun onTouchEvent(event: MotionEvent): Boolean {
         return handlers[currentTool]?.onTouchEvent(event) ?: true
     }

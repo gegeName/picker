@@ -58,7 +58,6 @@ internal class VideoTranscoder(
             onProgress(1)
 
             muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-            applyOrientation(srcFormat, muxer)
 
             val encFormat = MediaFormat.createVideoFormat(MIME_VIDEO, outW, outH).apply {
                 setInteger(
@@ -269,15 +268,6 @@ internal class VideoTranscoder(
         } else {
             false
         }
-
-    private fun applyOrientation(srcFormat: MediaFormat, muxer: MediaMuxer) {
-        val rotation = if (srcFormat.containsKey(MediaFormat.KEY_ROTATION)) {
-            srcFormat.getInteger(MediaFormat.KEY_ROTATION)
-        } else {
-            0
-        }
-        if (rotation != 0) muxer.setOrientationHint(rotation)
-    }
 
     private fun selectTrack(extractor: MediaExtractor, prefix: String): Int {
         for (i in 0 until extractor.trackCount) {

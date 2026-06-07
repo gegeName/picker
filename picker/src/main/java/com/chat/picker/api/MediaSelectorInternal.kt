@@ -5,12 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
+import android.os.Looper
 import android.provider.OpenableColumns
 import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import com.chat.picker.R
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
@@ -23,6 +25,7 @@ import com.chat.picker.model.MediaFilter
 import com.chat.picker.model.MediaType
 import com.chat.picker.preview.IOtherPreviewProvider
 import com.chat.picker.ui.CropImageActivity
+import com.chat.picker.ui.LoadingDialog
 import com.chat.picker.ui.MediaPickerActivity
 import com.chat.picker.ui.PermissionHelper
 import com.chat.picker.util.StorageAccess
@@ -237,13 +240,46 @@ internal object MediaSelectorInternal {
             return
         }
 
+        var loadingDialog: LoadingDialog? = null
+
+        fun showLoading(text: String) {
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                val dialog = loadingDialog ?: LoadingDialog(activity).also {
+                    loadingDialog = it
+                    it.setBackCancelEnabled(enable = false)
+                }
+                dialog.setText(text)
+                if (!dialog.isShowing) dialog.show()
+            }
+        }
+
+        fun dismissLoading() {
+            val block = {
+                loadingDialog?.takeIf { it.isShowing }?.dismiss()
+                loadingDialog = null
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                block()
+            } else {
+                activity.runOnUiThread(block)
+            }
+        }
+
+        val isVideo = needsVideoCompress
+        showLoading(buildCameraCompressProgressText(activity, item.isImage, isVideo, 0))
+
         val callback = CompressCallback(
             originalItem = item,
             delivery = { result ->
                 activity.runOnUiThread {
+                    dismissLoading()
                     clearRuntimeState()
                     listener.onResult(listOf(result))
                 }
+            },
+            progressDelivery = { percent ->
+                showLoading(buildCameraCompressProgressText(activity, item.isImage, isVideo, percent))
             },
         )
         val pool = Executors.newSingleThreadExecutor()
@@ -266,6 +302,35 @@ internal object MediaSelectorInternal {
         } catch (e: Throwable) {
             pool.shutdownNow()
             callback.onError(e)
+        }
+    }
+
+    private fun buildCameraCompressProgressText(
+        activity: ComponentActivity,
+        isImage: Boolean,
+        isVideo: Boolean,
+        percent: Int,
+    ): String {
+        val safePercent = percent.coerceIn(0, 100)
+        val done = if (safePercent >= 100) 1 else 0
+        return buildString {
+            append(
+                activity.getString(
+                    R.string.picker_compress_progress,
+                    done,
+                    1,
+                )
+            )
+            append("\n")
+            if (isImage) {
+                append(activity.getString(R.string.picker_compress_image_progress, done, 1))
+                append("\n")
+                append(activity.getString(R.string.picker_compress_image_percent, safePercent))
+            } else if (isVideo) {
+                append(activity.getString(R.string.picker_compress_video_progress, done, 1))
+                append("\n")
+                append(activity.getString(R.string.picker_compress_video_percent, safePercent))
+            }
         }
     }
 

@@ -183,6 +183,10 @@ internal class CropImageView @JvmOverloads constructor(
         toolHelper.setTextColor(color)
     }
 
+    fun setDefaultTextColor(color: Int) {
+        toolHelper.setDefaultTextColor(color)
+    }
+
     fun hasUnsavedEdits(): Boolean = editedSinceSave
 
     fun isTransformInProgress(): Boolean = transformInProgress

@@ -119,7 +119,7 @@ internal class CropImageActivity : AppCompatActivity() {
         textColorView.setOnClickListener {
             colorPicker.show(R.string.picker_crop_text, textColor) { color ->
                 textColor = color
-                cropView.setTextColor(color)
+                cropView.setDefaultTextColor(color)
                 colorPicker.applyColorCircle(textColorView, color)
             }
         }
