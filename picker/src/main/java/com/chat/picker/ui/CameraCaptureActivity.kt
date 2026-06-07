@@ -4,9 +4,12 @@ import android.annotation.SuppressLint
 import android.Manifest
 import android.animation.ValueAnimator
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ColorFilter
+import android.graphics.Matrix
 import android.graphics.SurfaceTexture
+import android.media.ExifInterface
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.content.Context
@@ -105,6 +108,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private var previewPlayer: MediaPlayer? = null
     private var previewSurface: Surface? = null
     private var previewVideoFile: File? = null
+    private var previewThumb: Bitmap? = null
 
     private var orientationListener: OrientationEventListener? = null
     private var deviceRotation: Int = Surface.ROTATION_0
@@ -403,6 +407,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    bakeExifOrientation(file)
                     runOnUiThread {
                         hasResult = file.exists() && file.length() > 0L
                         if (hasResult) showPhotoPreview(file)
@@ -431,6 +436,64 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         } else {
             startVideo()
         }
+    }
+
+    private fun bakeExifOrientation(file: File) {
+        if (!file.exists() || file.length() <= 0L) return
+        runCatching {
+            val orientation = ExifInterface(file.absolutePath).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL,
+            )
+            val matrix = Matrix()
+            when (orientation) {
+                ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+                ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+                ExifInterface.ORIENTATION_TRANSPOSE -> {
+                    matrix.postRotate(90f)
+                    matrix.postScale(-1f, 1f)
+                }
+                ExifInterface.ORIENTATION_TRANSVERSE -> {
+                    matrix.postRotate(270f)
+                    matrix.postScale(-1f, 1f)
+                }
+                else -> return@runCatching
+            }
+            val opts = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(file.absolutePath, opts)
+            val sample = calcExifSampleSize(opts.outWidth, opts.outHeight)
+            val decodeOpts = BitmapFactory.Options().apply {
+                inSampleSize = sample
+                inPreferredConfig = Bitmap.Config.ARGB_8888
+            }
+            val src = BitmapFactory.decodeFile(file.absolutePath, decodeOpts) ?: return@runCatching
+            val rotated = Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
+            if (rotated !== src) src.recycle()
+            file.outputStream().use { rotated.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+            rotated.recycle()
+            ExifInterface(file.absolutePath).apply {
+                setAttribute(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL.toString(),
+                )
+                saveAttributes()
+            }
+        }
+    }
+
+    private fun calcExifSampleSize(width: Int, height: Int): Int {
+        if (width <= 0 || height <= 0) return 1
+        var sample = 1
+        val longSide = maxOf(width, height)
+        while (longSide / (sample * 2) >= MAX_BAKE_LONG_SIDE) {
+            sample *= 2
+        }
+        return sample
     }
 
     @SuppressLint("MissingPermission")
@@ -535,7 +598,9 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         resultPhoto.visibility = View.GONE
         resultPhoto.setImageDrawable(null)
         val thumb = readVideoFrame(file)
+        recyclePreviewThumb()
         if (thumb != null) {
+            previewThumb = thumb
             resultVideoThumb.setImageBitmap(thumb)
             resultVideoThumb.visibility = View.VISIBLE
         } else {
@@ -587,8 +652,14 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         videoPlayToggle.setImageResource(R.drawable.picker_ic_play)
         videoPlayToggle.contentDescription = getString(R.string.picker_camera_play)
         resultVideoThumb.setImageDrawable(null)
+        recyclePreviewThumb()
         releaseVideoPreviewPlayer()
         previewVideoFile = null
+    }
+
+    private fun recyclePreviewThumb() {
+        previewThumb?.let { if (!it.isRecycled) it.recycle() }
+        previewThumb = null
     }
 
     private fun toggleVideoPreviewPlayback() {
@@ -692,8 +763,23 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             val retriever = MediaMetadataRetriever()
             try {
                 retriever.setDataSource(file.absolutePath)
-                retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    val dm = resources.displayMetrics
+                    retriever.getScaledFrameAtTime(
+                        1_000_000L,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        dm.widthPixels,
+                        dm.heightPixels,
+                    ) ?: retriever.getScaledFrameAtTime(
+                        0L,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        dm.widthPixels,
+                        dm.heightPixels,
+                    )
+                } else {
+                    retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                        ?: retriever.getFrameAtTime(0L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                }
             } finally {
                 retriever.release()
             }
@@ -915,6 +1001,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val MAX_BAKE_LONG_SIDE = 4096
         private const val EXTRA_MODE = "picker.camera.mode"
         private const val EXTRA_FILE_PATH = "picker.camera.file_path"
         private const val EXTRA_MAX_DURATION_MS = "picker.camera.max_duration_ms"
