@@ -9,7 +9,7 @@ Android 图片、视频、音频和文件选择器，支持多选、预览、拍
 - 网格/列表模式、多选/单选、预选回显
 - 图片和视频全屏预览
 - 其他文件可自定义列表封面，也可自定义预览页打开/渲染文档能力
-- 拍照、录视频、列表首位相机入口
+- 拍照、录视频、限时录视频、列表首位相机入口
 - 图片裁剪：自由比例、固定比例、圆形裁剪、输出尺寸和质量控制
 - 图片编辑：多图编辑、裁剪、画笔、文字、马赛克、颜色和画笔大小
 - 图片压缩、视频压缩，支持压缩进度
@@ -65,7 +65,7 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    implementation 'com.github.gegeName:picker:1.0.8'
+    implementation 'com.github.gegeName:picker:1.0.9'
 }
 ```
 
@@ -73,7 +73,7 @@ Kotlin DSL：
 
 ```kotlin
 dependencies {
-    implementation("com.github.gegeName:picker:1.0.8")
+    implementation("com.github.gegeName:picker:1.0.9")
 }
 ```
 
@@ -160,6 +160,59 @@ PickIt.with(this)
     }
 ```
 
+### 限时录视频
+
+```kotlin
+import com.chat.picker.api.CameraRecordTrigger
+
+PickIt.takeVideo(
+    activity = this,
+    maxDurationMs = 10_000L,
+    countDown = true,
+    trigger = CameraRecordTrigger.CLICK,
+) { success, filePath, uri ->
+    // success=false 表示用户取消或录制失败
+}
+```
+
+链式入口也支持设置录制时长：
+
+```kotlin
+PickIt.with(this)
+    .takeVideo()
+    .recordDurationMs(10_000L, countDown = true)
+    .clickRecord()
+    .start { result ->
+    }
+```
+
+### 系统 Photo Picker
+
+```kotlin
+PickIt.with(this)
+    .type(MediaType.IMAGE)
+    .maxCount(5)
+    .useSystemPhotoPicker(true)
+    .start { result ->
+    }
+```
+
+### 系统文件选择器
+
+```kotlin
+PickIt.pickFiles(
+    activity = this,
+    mimeTypes = arrayOf(
+        "application/pdf",
+        "application/zip",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ),
+    allowMultiple = true,
+) { result ->
+}
+```
+
 ## API 使用说明
 
 ### 入口
@@ -235,12 +288,20 @@ PickIt.with(this)
 | `MediaSelector.takePhoto(activity, listener)` | 独立拍照，不进入 picker UI |
 | `MediaSelector.takePhoto(fragment, listener)` | Fragment 版独立拍照 |
 | `MediaSelector.takeVideo(activity, listener)` | 独立录视频，不进入 picker UI |
+| `MediaSelector.takeVideo(activity, maxDurationMs, countDown, trigger, listener)` | 独立限时录视频，可设置倒计时和触发方式 |
 | `MediaSelector.takeVideo(fragment, listener)` | Fragment 版独立录视频 |
+| `MediaSelector.takeVideo(fragment, maxDurationMs, countDown, trigger, listener)` | Fragment 版独立限时录视频 |
 | `takePhoto()` | 链式拍照入口，结果以 `List<MediaEntity>` 从 `start` 返回 |
 | `takeVideo()` | 链式录视频入口，结果以 `List<MediaEntity>` 从 `start` 返回 |
+| `recordDurationMs(durationMs, countDown)` | 设置链式录像最大时长；`countDown=true` 时 UI 显示倒计时 |
+| `recordCountDown(enable)` | 单独控制链式录像是否倒计时显示 |
+| `recordTrigger(trigger)` | 设置录像触发方式，支持点击或长按 |
+| `clickRecord()` | 链式录像使用点击开始/停止 |
+| `longPressRecord()` | 链式录像使用长按录制、松手停止 |
 | `showCameraEntry(enable)` | 在列表首位显示拍照/录制入口 |
 
 独立拍照和独立录视频回调中，用户取消或失败时 `success=false`，`filePath` 和 `uri` 为空。
+录视频会在有麦克风且已授权时录制音频；无麦克风设备会自动录制无声视频。
 
 ### 裁剪
 
@@ -313,6 +374,7 @@ PickIt.with(this)
 | `MediaSelector.pickFiles(fragment, mimeTypes, allowMultiple, listener)` | Fragment 版 SAF 文件选择入口 |
 
 开启裁剪、图片编辑等图片处理能力时，会自动回到本框架流程。音频类型不会使用系统 Photo Picker。
+系统文件选择器适合 PDF、ZIP、Word、Excel 等非媒体文件，返回结果同样是 `List<MediaEntity>`；部分云端文件可能没有 `filePath`，业务侧应优先使用 `uri`。
 
 ### 图片加载引擎
 
