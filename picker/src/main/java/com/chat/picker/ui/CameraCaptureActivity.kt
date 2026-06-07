@@ -22,6 +22,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.MotionEvent
+import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
@@ -105,6 +106,9 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private var previewSurface: Surface? = null
     private var previewVideoFile: File? = null
 
+    private var orientationListener: OrientationEventListener? = null
+    private var deviceRotation: Int = Surface.ROTATION_0
+
     private val tick = object : Runnable {
         override fun run() {
             updateTimer()
@@ -132,6 +136,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             }
         })
         startCamera()
+        startOrientationListener()
         updateModeUi()
         timer.post(tick)
     }
@@ -300,11 +305,14 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             }
             imageCapture = ImageCapture.Builder()
                 .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                .setTargetRotation(deviceRotation)
                 .build()
             val recorder = Recorder.Builder()
                 .setQualitySelector(QualitySelector.from(Quality.HD))
                 .build()
-            videoCapture = VideoCapture.withOutput(recorder)
+            videoCapture = VideoCapture.withOutput(recorder).also {
+                it.targetRotation = deviceRotation
+            }
 
             runCatching {
                 val image = imageCapture ?: return@runCatching
@@ -330,6 +338,24 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             torchOn = state == TorchState.ON
             updateFlashUi()
         }
+    }
+
+    private fun startOrientationListener() {
+        orientationListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+                val rotation = when {
+                    orientation >= 315 || orientation < 45 -> Surface.ROTATION_0
+                    orientation < 135 -> Surface.ROTATION_270
+                    orientation < 225 -> Surface.ROTATION_180
+                    else -> Surface.ROTATION_90
+                }
+                if (rotation == deviceRotation) return
+                deviceRotation = rotation
+                imageCapture?.targetRotation = rotation
+                if (!isRecording) videoCapture?.targetRotation = rotation
+            }
+        }.apply { if (canDetectOrientation()) enable() }
     }
 
     private fun updateModeUi() {
@@ -732,10 +758,6 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     }
 
     private fun finishWithSuccess() {
-        if (mode == CameraCaptureMode.VIDEO && !hasResult && activeRecording != null) {
-            stopVideo()
-            return
-        }
         if (!hasResult) return
         setResult(RESULT_OK)
         finish()
@@ -883,6 +905,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         timer.removeCallbacks(tick)
+        orientationListener?.disable()
+        orientationListener = null
         stopVideoPreview()
         activeRecording?.close()
         activeRecording = null
@@ -893,7 +917,6 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     companion object {
         private const val EXTRA_MODE = "picker.camera.mode"
         private const val EXTRA_FILE_PATH = "picker.camera.file_path"
-        private const val EXTRA_URI = "picker.camera.uri"
         private const val EXTRA_MAX_DURATION_MS = "picker.camera.max_duration_ms"
         private const val EXTRA_COUNT_DOWN = "picker.camera.count_down"
         private const val EXTRA_RECORD_TRIGGER = "picker.camera.record_trigger"
@@ -902,14 +925,12 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             context: Context,
             mode: CameraCaptureMode,
             filePath: String,
-            uri: Uri,
             maxDurationMs: Long,
             countDown: Boolean,
             trigger: CameraRecordTrigger,
         ): Intent = Intent(context, CameraCaptureActivity::class.java).apply {
             putExtra(EXTRA_MODE, mode.name)
             putExtra(EXTRA_FILE_PATH, filePath)
-            putExtra(EXTRA_URI, uri)
             putExtra(EXTRA_MAX_DURATION_MS, maxDurationMs)
             putExtra(EXTRA_COUNT_DOWN, countDown)
             putExtra(EXTRA_RECORD_TRIGGER, trigger.name)

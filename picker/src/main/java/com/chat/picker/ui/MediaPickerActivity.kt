@@ -186,7 +186,6 @@ class MediaPickerActivity : AppCompatActivity() {
                     CameraCaptureMode.PHOTO
                 },
                 filePath = p.filePath,
-                uri = p.uri,
                 maxDurationMs = config.cameraRecordDurationMs,
                 countDown = config.cameraRecordCountDown,
                 trigger = config.cameraRecordTrigger,
