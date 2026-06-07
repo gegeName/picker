@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -30,6 +31,7 @@ import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaType
 import com.chat.picker.util.EdgeToEdge
 import com.chat.picker.util.PickerLog
+import com.chat.picker.util.StorageAccess
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -50,6 +52,7 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private var isGrid: Boolean = true
     private var adapter: MediaListAdapter? = null
+    private var footerAdapter: FooterAdapter? = null
     private var activePreviewId: String? = null
 
     private val transitionTargetResolver = object : MediaPreviewTransitionBridge.TargetResolver {
@@ -334,17 +337,38 @@ class MediaPickerActivity : AppCompatActivity() {
                 },
             ),
         )
-        recycler.layoutManager = if (isGrid)
-            GridLayoutManager(this, config.gridSpanCount)
-        else LinearLayoutManager(this)
-        recycler.adapter = adapter
+        val mediaAdapter = adapter!!
+        val footer = FooterAdapter().also { footerAdapter = it }
+        val concat = ConcatAdapter(mediaAdapter, footer)
+        recycler.layoutManager = if (isGrid) {
+            GridLayoutManager(this, config.gridSpanCount).apply {
+                spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                    override fun getSpanSize(position: Int): Int =
+                        if (position >= mediaAdapter.itemCount) config.gridSpanCount else 1
+                }
+            }
+        } else {
+            LinearLayoutManager(this)
+        }
+        recycler.adapter = concat
         recycler.itemAnimator = null
         adapter?.submitList(buildDisplayList(Selection.all))
+        restoreFooterState()
         btnToggle.text = getString(
             if (isGrid) R.string.picker_toggle_list
             else R.string.picker_toggle_grid
         )
         attachPrefetchListener()
+    }
+
+    private fun restoreFooterState() {
+        val state = when {
+            Selection.all.isEmpty() -> FooterAdapter.State.HIDDEN
+            isLoadingPage -> FooterAdapter.State.LOADING
+            !hasMore -> FooterAdapter.State.NO_MORE
+            else -> FooterAdapter.State.HIDDEN
+        }
+        footerAdapter?.setState(state)
     }
 
     private fun attachPrefetchListener() {
@@ -419,6 +443,7 @@ class MediaPickerActivity : AppCompatActivity() {
         lastTriggerAt = 0L
         loadedKeys.clear()
         Selection.all.clear()
+        footerAdapter?.setState(FooterAdapter.State.HIDDEN)
         seedPreSelectedAtTop()
         adapter?.submitList(buildDisplayList(Selection.all))
 
@@ -451,6 +476,31 @@ class MediaPickerActivity : AppCompatActivity() {
     private fun loadPageInternal(isCanonical: Boolean, isFirstPage: Boolean) {
         isLoadingPage = true
         val offset = currentOffset
+        val streaming = isFirstPage &&
+            config.filter.extraSelection == null &&
+            StorageAccess.hasAllFilesAccess()
+        if (streaming) {
+            var firstBatch = true
+            MediaRepository.queryAsync(
+                applicationContext, config.filter,
+                onPage = { page ->
+                    if (page.isEmpty()) return@queryAsync
+                    runOnUiThread {
+                        if (firstBatch) {
+                            if (isCanonical) MediaSelector.putCache(config.filter.type, page)
+                            dismissLoading()
+                            footerAdapter?.setState(FooterAdapter.State.LOADING)
+                            firstBatch = false
+                        }
+                        appendStream(page)
+                    }
+                },
+            ) {
+                runOnUiThread { finishStream() }
+            }
+            return
+        }
+        footerAdapter?.setState(FooterAdapter.State.LOADING)
         MediaRepository.queryAsync(
             applicationContext, config.filter,
             offset = offset, limit = pageSize,
@@ -462,6 +512,27 @@ class MediaPickerActivity : AppCompatActivity() {
                 appendPage(list, fromCache = false)
             }
         }
+    }
+
+    private fun appendStream(page: List<MediaEntity>) {
+        val newOnes = page.filter { loadedKeys.add(keyOf(it)) }
+        if (newOnes.isNotEmpty()) {
+            Selection.all.addAll(newOnes)
+            adapter?.submitList(buildDisplayList(Selection.all))
+        }
+        currentOffset += page.size
+    }
+
+    private fun finishStream() {
+        dismissLoading()
+        hasMore = false
+        isLoadingPage = false
+        footerAdapter?.setState(
+            if (Selection.all.isEmpty()) FooterAdapter.State.HIDDEN
+            else FooterAdapter.State.NO_MORE
+        )
+        emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
+        updateConfirmButton()
     }
 
     private fun appendPage(page: List<MediaEntity>, fromCache: Boolean) {
@@ -479,6 +550,13 @@ class MediaPickerActivity : AppCompatActivity() {
         }
         isLoadingPage = false
 
+        footerAdapter?.setState(
+            when {
+                Selection.all.isEmpty() -> FooterAdapter.State.HIDDEN
+                hasMore -> FooterAdapter.State.HIDDEN
+                else -> FooterAdapter.State.NO_MORE
+            }
+        )
         emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
         updateConfirmButton()
     }

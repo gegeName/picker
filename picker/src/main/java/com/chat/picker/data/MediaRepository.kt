@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.storage.StorageManager
 import android.os.SystemClock
 import android.provider.MediaStore
 import android.webkit.MimeTypeMap
@@ -28,6 +29,7 @@ object MediaRepository {
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private const val FILE_SCAN_CACHE_TTL_MS = 30_000L
     private const val NO_MEDIA = ".nomedia"
+    private const val STREAM_BATCH_SIZE = 60
 
     @Volatile
     private var fileScanCache: FileScanCache? = null
@@ -37,13 +39,46 @@ object MediaRepository {
         filter: MediaFilter,
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
+        onPage: ((List<MediaEntity>) -> Unit)? = null,
         callback: (List<MediaEntity>) -> Unit,
     ) {
         ioExecutor.execute {
-            val list = runCatching { query(context, filter, offset, limit) }
-                .getOrDefault(emptyList())
-            callback(list)
+            if (onPage != null &&
+                StorageAccess.hasAllFilesAccess() &&
+                filter.extraSelection == null
+            ) {
+                runCatching { streamScan(context, filter, onPage) }
+                callback(emptyList())
+            } else {
+                val list = runCatching { query(context, filter, offset, limit) }
+                    .getOrDefault(emptyList())
+                callback(list)
+            }
         }
+    }
+
+    private fun streamScan(
+        context: Context,
+        filter: MediaFilter,
+        onPage: (List<MediaEntity>) -> Unit,
+    ) {
+        val scanKey = FileScanKey(
+            type = filter.type,
+            mimeTypes = filter.mimeTypes.sorted(),
+            minSizeBytes = filter.minSizeBytes,
+            maxDurationMs = filter.maxDurationMs,
+        )
+        val cached = cachedCandidates(scanKey)
+        if (cached != null) {
+            cached.chunked(STREAM_BATCH_SIZE).forEach { batch ->
+                onPage(batch.map { it.toEntity() })
+            }
+            return
+        }
+        val all = scanCandidates(context, filter) { batch ->
+            onPage(batch.map { it.toEntity() })
+        }
+        fileScanCache = FileScanCache(scanKey, SystemClock.uptimeMillis(), all)
     }
 
     fun invalidateFileScanCache() {
@@ -156,13 +191,28 @@ object MediaRepository {
         return cached.candidates
     }
 
-    private fun scanCandidates(context: Context, filter: MediaFilter): List<FileCandidate> {
+    private fun scanCandidates(
+        context: Context,
+        filter: MediaFilter,
+        onBatch: ((List<FileCandidate>) -> Unit)? = null,
+    ): List<FileCandidate> {
         val candidates = mutableListOf<FileCandidate>()
+        val pending = mutableListOf<FileCandidate>()
         val visitedDirs = HashSet<String>()
         val stack = ArrayDeque<File>()
         scanRoots(context).forEach { root ->
             if (root.exists() && root.isDirectory && root.canRead()) {
                 stack.add(root)
+            }
+        }
+
+        fun collect(candidate: FileCandidate) {
+            candidates += candidate
+            if (onBatch == null) return
+            pending += candidate
+            if (pending.size >= STREAM_BATCH_SIZE) {
+                onBatch(pending.sortedByDescending { it.modifiedSec })
+                pending.clear()
             }
         }
 
@@ -177,12 +227,15 @@ object MediaRepository {
                     if (child.isDirectory) {
                         if (child.canRead() && !shouldSkipDir(child)) stack.add(child)
                     } else if (child.isFile && child.canRead() && !child.name.startsWith(".")) {
-                        toCandidate(child, filter)?.let { candidates += it }
+                        toCandidate(child, filter)?.let { collect(it) }
                     }
                 }
             } else if (file.isFile && file.canRead()) {
-                toCandidate(file, filter)?.let { candidates += it }
+                toCandidate(file, filter)?.let { collect(it) }
             }
+        }
+        if (onBatch != null && pending.isNotEmpty()) {
+            onBatch(pending.sortedByDescending { it.modifiedSec })
         }
         return candidates.sortedByDescending { it.modifiedSec }
     }
@@ -198,15 +251,34 @@ object MediaRepository {
         val roots = LinkedHashMap<String, File>()
         fun addRoot(file: File?) {
             val root = file ?: return
+            if (!root.isDirectory) return
             val key = runCatching { root.canonicalPath }.getOrDefault(root.absolutePath)
             roots[key] = root
         }
 
         addRoot(Environment.getExternalStorageDirectory())
+        volumeRoots(context).forEach { addRoot(it) }
         context.getExternalFilesDirs(null).forEach { appDir ->
             addRoot(appDir?.externalStorageRoot())
         }
         return roots.values.toList()
+    }
+
+    private fun volumeRoots(context: Context): List<File> {
+        val manager = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
+            ?: return emptyList()
+        return runCatching {
+            manager.storageVolumes.mapNotNull { volume ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    volume.directory
+                } else {
+                    runCatching {
+                        val m = volume.javaClass.getMethod("getPathFile")
+                        m.invoke(volume) as? File
+                    }.getOrNull()
+                }
+            }
+        }.getOrDefault(emptyList())
     }
 
     private fun File.externalStorageRoot(): File? {
