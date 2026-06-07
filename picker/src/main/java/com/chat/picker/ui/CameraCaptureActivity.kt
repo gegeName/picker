@@ -62,6 +62,7 @@ import androidx.core.view.updatePadding
 import com.chat.picker.R
 import com.chat.picker.api.CameraCaptureMode
 import com.chat.picker.api.CameraRecordTrigger
+import com.chat.picker.camera.CameraHelper
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -304,20 +305,11 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private fun startCamera() {
         val providerFuture = ProcessCameraProvider.getInstance(this)
         providerFuture.addListener({
-            val provider = providerFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-            val recorder = Recorder.Builder()
-                .setQualitySelector(
-                    QualitySelector.from(
-                        Quality.HD,
-                        FallbackStrategy.lowerQualityOrHigherThan(Quality.SD),
-                    )
-                )
-                .build()
-
             runCatching {
+                val provider = providerFuture.get()
+                val preview = Preview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
                 provider.unbindAll()
                 val selector = cameraSelector(provider)
                 if (mode == CameraCaptureMode.PHOTO) {
@@ -335,6 +327,14 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                     )
                 } else {
                     imageCapture = null
+                    val recorder = Recorder.Builder()
+                        .setQualitySelector(
+                            QualitySelector.from(
+                                Quality.HD,
+                                FallbackStrategy.lowerQualityOrHigherThan(Quality.SD),
+                            )
+                        )
+                        .build()
                     val video = VideoCapture.withOutput(recorder).also {
                         it.targetRotation = deviceRotation
                     }
@@ -525,9 +525,11 @@ internal class CameraCaptureActivity : AppCompatActivity() {
 
     @SuppressLint("MissingPermission")
     private fun startVideo() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+        val hasMicrophone = CameraHelper.hasMicrophone(this)
+        val recordAudio = hasMicrophone &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
             PackageManager.PERMISSION_GRANTED
-        ) {
+        if (hasMicrophone && !recordAudio) {
             Toast.makeText(this, R.string.picker_video_permission_required, Toast.LENGTH_SHORT).show()
             return
         }
@@ -536,9 +538,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         file.parentFile?.mkdirs()
         runCatching { file.delete() }
         val output = FileOutputOptions.Builder(file).build()
-        pendingRecording = capture.output
-            .prepareRecording(this, output)
-            .withAudioEnabled()
+        val recording = capture.output.prepareRecording(this, output)
+        pendingRecording = if (recordAudio) recording.withAudioEnabled() else recording
         activeRecording = pendingRecording?.start(ContextCompat.getMainExecutor(this)) recordListener@{ event ->
             if (event is VideoRecordEvent.Finalize) {
                 val ok = !event.hasError() && file.exists() && file.length() > 0L

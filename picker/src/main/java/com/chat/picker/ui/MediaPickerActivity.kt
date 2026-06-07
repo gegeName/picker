@@ -132,7 +132,7 @@ class MediaPickerActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         val granted = if (shouldRecordVideoFromCameraEntry()) {
-            CameraHelper.videoPermissions().all { grants[it] == true }
+            CameraHelper.videoPermissions(this).all { grants[it] == true }
         } else {
             CameraHelper.photoPermissions().all { grants[it] == true }
         }
@@ -161,7 +161,7 @@ class MediaPickerActivity : AppCompatActivity() {
         } else {
             cameraPermLauncher.launch(
                 if (shouldRecordVideoFromCameraEntry()) {
-                    CameraHelper.videoPermissions()
+                    CameraHelper.videoPermissions(this)
                 } else {
                     CameraHelper.photoPermissions()
                 }
