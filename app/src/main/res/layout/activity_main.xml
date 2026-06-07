@@ -75,6 +75,27 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:text="系统选择器"
+            android:textColor="#222"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_pick_system_photo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="系统 Photo Picker（API 33+，最多 5 张）" />
+
+        <Button
+            android:id="@+id/btn_pick_document"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="系统文件选择器（PDF / ZIP / Word，可多选）" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:text="压缩"
             android:textColor="#222"
             android:textSize="16sp"
@@ -157,6 +178,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="独立录视频（不进 picker，直接返回路径）" />
+
+        <Button
+            android:id="@+id/btn_take_video_10s"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="限时录视频（最长 10 秒，倒计时）" />
 
         <Button
             android:id="@+id/btn_take_video_compress"

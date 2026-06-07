@@ -9,6 +9,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.chat.picker.api.CameraRecordTrigger
 import com.chat.picker.api.CropOutputFormat
 import com.chat.picker.api.ImageProcessStore
 import com.chat.picker.api.PickIt
@@ -75,6 +76,27 @@ class MainActivity : AppCompatActivity() {
                 .maxCount(9)
                 .grid(true)
                 .start { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_pick_system_photo).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .maxCount(5)
+                .useSystemPhotoPicker(true)
+                .start { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_pick_document).setOnClickListener {
+            PickIt.pickFiles(
+                activity = this,
+                mimeTypes = arrayOf(
+                    "application/pdf",
+                    "application/zip",
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ),
+                allowMultiple = true,
+            ) { render(it) }
         }
 
 
@@ -174,7 +196,7 @@ class MainActivity : AppCompatActivity() {
                     append("path: $filePath\n")
                     append("uri:  $uri")
                 }
-                showLocalImage(filePath)
+                showCapturedPhoto(filePath, uri)
                 Toast.makeText(this, "已存入系统相册", Toast.LENGTH_SHORT).show()
             }
         }
@@ -202,6 +224,28 @@ class MainActivity : AppCompatActivity() {
                 }
                 result.text = buildString {
                     append("录视频成功\n")
+                    append("path: $filePath\n")
+                    append("uri:  $uri")
+                }
+                showRecordedVideo(filePath, uri)
+                Toast.makeText(this, "已存入系统相册", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        findViewById<Button>(R.id.btn_take_video_10s).setOnClickListener {
+            PickIt.takeVideo(
+                activity = this,
+                maxDurationMs = 10_000L,
+                countDown = true,
+                trigger = CameraRecordTrigger.LONG_PRESS,
+            ) { success, filePath, uri ->
+                if (!success || filePath.isNullOrEmpty() || uri == null) {
+                    result.text = "限时录视频取消或失败"
+                    preview.visibility = ImageView.GONE
+                    return@takeVideo
+                }
+                result.text = buildString {
+                    append("限时录视频成功（最长 10 秒）\n")
                     append("path: $filePath\n")
                     append("uri:  $uri")
                 }
@@ -317,8 +361,28 @@ class MainActivity : AppCompatActivity() {
         preview.visibility = ImageView.VISIBLE
     }
 
-    private fun showRecordedVideo(path: String, uri: android.net.Uri) {
+    private fun showCapturedPhoto(path: String, uri: android.net.Uri) {
         val file = File(path)
+        val now = System.currentTimeMillis()
+        val item = MediaEntity(
+            id = -now,
+            uri = uri,
+            filePath = path,
+            displayName = file.name,
+            mimeType = "image/jpeg",
+            sizeBytes = if (file.exists()) file.length() else 0L,
+            durationMs = 0L,
+            dateAddedSec = now / 1000,
+            width = 0,
+            height = 0,
+            mediaType = MediaType.IMAGE,
+        )
+        lastPicked = listOf(item)
+        lastPreviewIndex = 0
+        showLocalImage(path)
+    }
+
+    private fun showRecordedVideo(path: String, uri: android.net.Uri) {        val file = File(path)
         val now = System.currentTimeMillis()
         val item = MediaEntity(
             id = -now,
