@@ -4,7 +4,6 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.widget.ImageView
@@ -53,19 +52,15 @@ internal object DefaultImageEngine : IImageEngine {
         }
     }
 
-    override fun loadThumbnail(view: ImageView, uri: Uri, isVideo: Boolean) {
-        ImageLoader.load(view, uri, isVideo, 360, 360)
-    }
-
-    override fun loadOriginal(view: ImageView, uri: Uri, isVideo: Boolean) {
+    override fun loadOriginal(view: ImageView, item: MediaEntity) {
         val current = (view.getTag(originalToken) as? Int ?: 0) + 1
         view.setTag(originalToken, current)
-        ImageLoader.peekThumb(uri, 360, 360)?.let { view.setImageBitmap(it) }
+        ImageLoader.peekThumb(item.uri, 360, 360)?.let { view.setImageBitmap(it) }
             ?: view.setImageDrawable(null)
         val ctx = view.context.applicationContext
         val target = maxOriginalSize
         pool.execute {
-            val bmp: Bitmap? = ImageLoader.decodeOriginalSync(ctx, uri, target)
+            val bmp: Bitmap? = ImageLoader.decodeOriginalSync(ctx, item.uri, target)
             main.post {
                 if (view.getTag(originalToken) == current && bmp != null) {
                     view.setImageBitmap(bmp)

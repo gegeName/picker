@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         preview = findViewById(R.id.demo_preview)
         lastPickedHint = findViewById(R.id.demo_last_picked_hint)
         preview.setOnClickListener { openFullScreenPreview() }
+        PdfDemo.installPreviewProvider()
 
         findViewById<Button>(R.id.btn_pick_image).setOnClickListener {
             PickIt.with(this)
@@ -122,6 +123,21 @@ class MainActivity : AppCompatActivity() {
                 ),
                 allowMultiple = true,
             ) { render(it) }
+        }
+
+        findViewById<Button>(R.id.btn_pick_pdf).setOnClickListener {
+            runWithAllFilesAccess {
+                val filter = MediaFilter.Builder(MediaType.ALL)
+                    .addMimeType(PdfDemo.MIME)
+                    .build()
+                PickIt.with(this)
+                    .filter(filter)
+                    .imageEngine(PdfCoverImageEngine())
+                    .showFirstLoading(true)
+                    .maxCount(6)
+                    .grid(true)
+                    .start { render(it) }
+            }
         }
 
 

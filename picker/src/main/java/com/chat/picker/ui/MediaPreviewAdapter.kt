@@ -94,7 +94,7 @@ internal class MediaPreviewAdapter
 
         fun bind(item: MediaEntity) {
             loading.visibility = View.GONE
-            MediaSelector.imageEngine().loadOriginal(image, item.uri, item.isVideo)
+            MediaSelector.imageEngine().loadOriginal(image, item)
         }
 
         fun release() {
@@ -118,7 +118,7 @@ internal class MediaPreviewAdapter
             play.visibility = View.VISIBLE
             loading.visibility = View.GONE
             thumb.scaleType = ImageView.ScaleType.CENTER_CROP
-            MediaSelector.imageEngine().loadThumbnail(thumb, item.uri, true)
+            MediaSelector.imageEngine().loadThumbnail(thumb, item)
 
             val mc = MediaController(ctx).also { controller = it }
             mc.setAnchorView(video)

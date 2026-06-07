@@ -6,8 +6,8 @@ import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.os.Looper
-import android.provider.OpenableColumns
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.PickVisualMediaRequest
@@ -18,7 +18,6 @@ import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
 import com.chat.picker.data.MediaRepository
-import com.chat.picker.loader.DefaultImageEngine
 import com.chat.picker.loader.IImageEngine
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaFilter
@@ -279,7 +278,14 @@ internal object MediaSelectorInternal {
                 }
             },
             progressDelivery = { percent ->
-                showLoading(buildCameraCompressProgressText(activity, item.isImage, isVideo, percent))
+                showLoading(
+                    buildCameraCompressProgressText(
+                        activity,
+                        item.isImage,
+                        isVideo,
+                        percent
+                    )
+                )
             },
         )
         val pool = Executors.newSingleThreadExecutor()
@@ -289,8 +295,10 @@ internal object MediaSelectorInternal {
                     when {
                         needsImageCompress && imageC != null ->
                             imageC.compress(activity.applicationContext, item, callback)
+
                         needsVideoCompress && videoC != null ->
                             videoC.compress(activity.applicationContext, item, callback)
+
                         else -> callback.onSuccess(item)
                     }
                 } catch (e: Throwable) {
@@ -405,8 +413,9 @@ internal object MediaSelectorInternal {
             launcher.unregister()
             if (result.resultCode == Activity.RESULT_OK) {
                 @Suppress("DEPRECATION")
-                val list = result.data?.getParcelableArrayListExtra<MediaEntity>(MediaSelector.EXTRA_RESULT)
-                    ?: arrayListOf()
+                val list =
+                    result.data?.getParcelableArrayListExtra<MediaEntity>(MediaSelector.EXTRA_RESULT)
+                        ?: arrayListOf()
                 listener.onResult(list)
             }
             pendingListener = null
@@ -479,7 +488,8 @@ internal object MediaSelectorInternal {
         return runCatching {
             ctx.contentResolver.query(uri, projection, null, null, null)?.use { c ->
                 if (!c.moveToFirst()) return null
-                val rawMime = c.getString(c.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE))
+                val rawMime =
+                    c.getString(c.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE))
                 val mime = rawMime ?: when (fallbackType) {
                     MediaType.IMAGE -> "image/*"
                     MediaType.VIDEO -> "video/*"

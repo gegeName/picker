@@ -248,13 +248,17 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      * 单次覆盖：仅本次调用使用该图片加载引擎，不影响全局。
      * @param engine 本次 picker 使用的图片加载引擎。
      */
-    fun imageEngine(engine: IImageEngine) = apply { MediaSelectorInternal.activeEngine = engine }
+    fun imageEngine(engine: IImageEngine) = apply {
+        MediaSelectorInternal.activeEngine = engine
+    }
 
     /**
      * 单次覆盖：仅本次使用该图片压缩器。
      * @param c 本次 picker 使用的图片压缩器。
      */
-    fun imageCompressor(c: IImageCompressor) = apply { MediaSelectorInternal.activeImageCompressor = c }
+    fun imageCompressor(c: IImageCompressor) = apply {
+        MediaSelectorInternal.activeImageCompressor = c
+    }
 
     /**
      * 本次选择启用内置智能图片压缩。
@@ -280,14 +284,16 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         minLongSide: Int = 720,
         preserveAlpha: Boolean = true,
     ) = apply {
-        MediaSelectorInternal.activeImageCompressor = SmartImageCompressor(
-            ignoreByKb = ignoreByKb,
-            quality = quality,
-            minQuality = minQuality,
-            maxWidth = maxWidth,
-            maxHeight = maxHeight,
-            minLongSide = minLongSide,
-            preserveAlpha = preserveAlpha,
+        imageCompressor(
+            SmartImageCompressor(
+                ignoreByKb = ignoreByKb,
+                quality = quality,
+                minQuality = minQuality,
+                maxWidth = maxWidth,
+                maxHeight = maxHeight,
+                minLongSide = minLongSide,
+                preserveAlpha = preserveAlpha,
+            )
         )
     }
 
@@ -295,7 +301,9 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      * 单次覆盖：仅本次使用该视频压缩器。
      * @param c 本次 picker 使用的视频压缩器。
      */
-    fun videoCompressor(c: IVideoCompressor) = apply { MediaSelectorInternal.activeVideoCompressor = c }
+    fun videoCompressor(c: IVideoCompressor) = apply {
+        MediaSelectorInternal.activeVideoCompressor = c
+    }
 
     /**
      * 本次选择启用内置 MediaCodec 视频压缩。
@@ -315,13 +323,15 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         minDurationMs: Long = 5_000L,
         minUsefulLongSide: Int = 720,
     ) = apply {
-        MediaSelectorInternal.activeVideoCompressor = MediaCodecVideoCompressor(
-            maxLongSide = maxLongSide,
-            targetBitRate = targetBitRate,
-            frameRate = frameRate,
-            minCompressBytes = minCompressBytes,
-            minDurationMs = minDurationMs,
-            minUsefulLongSide = minUsefulLongSide,
+        videoCompressor(
+            MediaCodecVideoCompressor(
+                maxLongSide = maxLongSide,
+                targetBitRate = targetBitRate,
+                frameRate = frameRate,
+                minCompressBytes = minCompressBytes,
+                minDurationMs = minDurationMs,
+                minUsefulLongSide = minUsefulLongSide,
+            )
         )
     }
 
@@ -690,10 +700,6 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
                 ?: MediaSelectorInternal.globalEngine
                 ?: DefaultImageEngine
 
-        internal fun clearActiveEngine() {
-            MediaSelectorInternal.activeEngine = null
-        }
-
         internal fun imageCompressor(): IImageCompressor? =
             MediaSelectorInternal.activeImageCompressor
                 ?: MediaSelectorInternal.globalImageCompressor
@@ -701,6 +707,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         internal fun videoCompressor(): IVideoCompressor? =
             MediaSelectorInternal.activeVideoCompressor
                 ?: MediaSelectorInternal.globalVideoCompressor
+
+        internal fun clearActiveEngine() {
+            MediaSelectorInternal.activeEngine = null
+        }
 
         internal fun clearActiveCompressors() {
             MediaSelectorInternal.activeImageCompressor = null
