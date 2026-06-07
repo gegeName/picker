@@ -2,12 +2,18 @@ package com.example.picker
 
 import android.graphics.BitmapFactory
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.chat.picker.api.CameraRecordTrigger
 import com.chat.picker.api.CropOutputFormat
@@ -25,6 +31,19 @@ class MainActivity : AppCompatActivity() {
 
     private var lastPicked: List<MediaEntity> = emptyList()
     private var lastPreviewIndex: Int = 0
+    private var pendingAllFilesAccessAction: (() -> Unit)? = null
+
+    private val allFilesAccessLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val action = pendingAllFilesAccessAction
+        pendingAllFilesAccessAction = null
+        if (hasAllFilesAccess()) {
+            action?.invoke()
+        } else {
+            Toast.makeText(this, "未开启所有文件访问，内部列表可能看不到 PDF/ZIP/Word", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,21 +80,27 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
         findViewById<Button>(R.id.btn_pick_mixed).setOnClickListener {
-            val filter = MediaFilter.Builder(MediaType.ALL)
-                .addMimeType("image/png", "video/mp4")
-                .build()
-            PickIt.with(this)
-                .filter(filter)
-                .maxCount(6)
-                .grid(true)
-                .start { render(it) }
+            runWithAllFilesAccess {
+                val filter = MediaFilter.Builder(MediaType.ALL)
+                    .addMimeType("video/mp4", "application/pdf", "application/zip")
+                    .build()
+                PickIt.with(this)
+                    .filter(filter)
+                    .showFirstLoading(true)
+                    .maxCount(6)
+                    .grid(true)
+                    .start { render(it) }
+            }
         }
         findViewById<Button>(R.id.btn_pick_all).setOnClickListener {
-            PickIt.with(this)
-                .type(MediaType.ALL)
-                .maxCount(9)
-                .grid(true)
-                .start { render(it) }
+            runWithAllFilesAccess {
+                PickIt.with(this)
+                    .type(MediaType.ALL)
+                    .showFirstLoading(true)
+                    .maxCount(9)
+                    .grid(true)
+                    .start { render(it) }
+            }
         }
 
         findViewById<Button>(R.id.btn_pick_system_photo).setOnClickListener {
@@ -329,6 +354,37 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun runWithAllFilesAccess(action: () -> Unit) {
+        if (hasAllFilesAccess()) {
+            action()
+            return
+        }
+        pendingAllFilesAccessAction = action
+        AlertDialog.Builder(this)
+            .setTitle("开启所有文件访问")
+            .setMessage("内部全部文件列表需要所有文件访问权限，开启后才能更完整地显示 PDF、ZIP、Word 等非媒体文件。")
+            .setPositiveButton("去开启") { _, _ -> openAllFilesAccessSettings() }
+            .setNegativeButton("取消") { _, _ -> pendingAllFilesAccessAction = null }
+            .show()
+    }
+
+    private fun hasAllFilesAccess(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+
+    private fun openAllFilesAccessSettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val appSettings = Intent(
+            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:$packageName"),
+        )
+        val intent = if (appSettings.resolveActivity(packageManager) != null) {
+            appSettings
+        } else {
+            Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+        }
+        allFilesAccessLauncher.launch(intent)
     }
 
     private fun hidePreview() {
