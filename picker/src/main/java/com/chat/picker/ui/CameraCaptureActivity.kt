@@ -20,7 +20,6 @@ import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.graphics.drawable.Drawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
@@ -111,6 +110,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private var previewSurface: Surface? = null
     private var previewVideoFile: File? = null
     private var previewThumb: Bitmap? = null
+    private var previewPhoto: Bitmap? = null
+    private var previewLoadGeneration = 0
 
     private var orientationListener: OrientationEventListener? = null
     private var deviceRotation: Int = Surface.ROTATION_0
@@ -606,12 +607,14 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     }
 
     private fun showPhotoPreview(file: File) {
+        val generation = nextPreviewLoadGeneration()
         stopVideoPreview()
         resultVideoBg.visibility = View.GONE
         resultVideo.visibility = View.GONE
         resultVideoThumb.visibility = View.GONE
         videoPlayToggle.visibility = View.GONE
-        resultPhoto.setImageURI(Uri.fromFile(file))
+        resultPhoto.setImageDrawable(null)
+        recyclePreviewPhoto()
         resultPhoto.visibility = View.VISIBLE
         previewView.visibility = View.GONE
         topScrim.visibility = View.VISIBLE
@@ -620,25 +623,25 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         flashButton.visibility = View.GONE
         torchButton.visibility = View.GONE
         timer.visibility = View.INVISIBLE
+        loadPhotoPreviewAsync(file, generation)
     }
 
     private fun showVideoPreview(file: File) {
+        val generation = nextPreviewLoadGeneration()
+        recyclePreviewPhoto()
         resultPhoto.visibility = View.GONE
         resultPhoto.setImageDrawable(null)
-        val thumb = readVideoFrame(file)
         recyclePreviewThumb()
-        if (thumb != null) {
-            previewThumb = thumb
-            resultVideoThumb.setImageBitmap(thumb)
-            resultVideoThumb.visibility = View.VISIBLE
-        } else {
-            resultVideoThumb.setImageDrawable(null)
-            resultVideoThumb.visibility = View.GONE
-        }
+        resultVideoThumb.setImageDrawable(null)
+        resultVideoThumb.visibility = View.GONE
         resultVideoBg.visibility = View.VISIBLE
         resultVideo.visibility = View.VISIBLE
         previewVideoFile = file
-        prepareVideoPreviewPlayer(file, playWhenReady = false)
+        resultVideo.post {
+            if (isPreviewLoadActive(generation) && previewVideoFile?.absolutePath == file.absolutePath) {
+                prepareVideoPreviewPlayer(file, playWhenReady = false)
+            }
+        }
         isPreviewVideoPlaying = false
         updateVideoPreviewToggle()
         showVideoPlayToggleAnimated()
@@ -650,9 +653,11 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         flashButton.visibility = View.GONE
         torchButton.visibility = View.GONE
         timer.visibility = View.INVISIBLE
+        loadVideoThumbAsync(file, generation)
     }
 
     private fun clearResultPreview() {
+        invalidatePreviewLoads()
         stopVideoPreview()
         actionPanel.animate().cancel()
         videoPlayToggle.animate().cancel()
@@ -667,6 +672,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         videoPlayToggle.visibility = View.GONE
         resultPhoto.visibility = View.GONE
         resultPhoto.setImageDrawable(null)
+        recyclePreviewPhoto()
         previewView.visibility = View.VISIBLE
         topScrim.visibility = View.VISIBLE
         bottomScrim.visibility = View.VISIBLE
@@ -688,6 +694,11 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private fun recyclePreviewThumb() {
         previewThumb?.let { if (!it.isRecycled) it.recycle() }
         previewThumb = null
+    }
+
+    private fun recyclePreviewPhoto() {
+        previewPhoto?.let { if (!it.isRecycled) it.recycle() }
+        previewPhoto = null
     }
 
     private fun toggleVideoPreviewPlayback() {
@@ -786,23 +797,117 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         )
     }
 
-    private fun readVideoFrame(file: File): Bitmap? {
+    private fun nextPreviewLoadGeneration(): Int {
+        previewLoadGeneration += 1
+        return previewLoadGeneration
+    }
+
+    private fun invalidatePreviewLoads() {
+        previewLoadGeneration += 1
+    }
+
+    private fun isPreviewLoadActive(generation: Int): Boolean =
+        generation == previewLoadGeneration && !isFinishing && !isDestroyed
+
+    private fun loadPhotoPreviewAsync(file: File, generation: Int) {
+        val reqWidth = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+        val reqHeight = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        runCatching {
+            cameraExecutor.execute {
+                val bitmap = decodeImageForPreview(file, reqWidth, reqHeight)
+                resultPhoto.post {
+                    if (!isPreviewLoadActive(generation) || resultPhoto.visibility != View.VISIBLE) {
+                        bitmap?.let { if (!it.isRecycled) it.recycle() }
+                        return@post
+                    }
+                    val old = previewPhoto
+                    previewPhoto = bitmap
+                    if (bitmap != null) {
+                        resultPhoto.setImageBitmap(bitmap)
+                    }
+                    old?.let { if (!it.isRecycled) it.recycle() }
+                }
+            }
+        }
+    }
+
+    private fun decodeImageForPreview(file: File, reqWidth: Int, reqHeight: Int): Bitmap? {
+        if (!file.exists() || file.length() <= 0L) return null
+        return runCatching {
+            val bounds = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeFile(file.absolutePath, bounds)
+            val opts = BitmapFactory.Options().apply {
+                inSampleSize = calcDecodeSampleSize(
+                    bounds.outWidth,
+                    bounds.outHeight,
+                    reqWidth,
+                    reqHeight,
+                )
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            BitmapFactory.decodeFile(file.absolutePath, opts)
+        }.getOrNull()
+    }
+
+    private fun calcDecodeSampleSize(
+        width: Int,
+        height: Int,
+        reqWidth: Int,
+        reqHeight: Int,
+    ): Int {
+        if (width <= 0 || height <= 0 || reqWidth <= 0 || reqHeight <= 0) return 1
+        var sample = 1
+        while (height / (sample * 2) >= reqHeight && width / (sample * 2) >= reqWidth) {
+            sample *= 2
+        }
+        return sample
+    }
+
+    private fun loadVideoThumbAsync(file: File, generation: Int) {
+        val reqWidth = resources.displayMetrics.widthPixels.coerceAtLeast(1)
+        val reqHeight = resources.displayMetrics.heightPixels.coerceAtLeast(1)
+        runCatching {
+            cameraExecutor.execute {
+                val thumb = readVideoFrame(file, reqWidth, reqHeight)
+                resultVideoThumb.post {
+                    if (!isPreviewLoadActive(generation) ||
+                        previewVideoFile?.absolutePath != file.absolutePath
+                    ) {
+                        thumb?.let { if (!it.isRecycled) it.recycle() }
+                        return@post
+                    }
+                    recyclePreviewThumb()
+                    if (thumb != null) {
+                        previewThumb = thumb
+                        resultVideoThumb.setImageBitmap(thumb)
+                        resultVideoThumb.visibility = View.VISIBLE
+                    } else {
+                        resultVideoThumb.setImageDrawable(null)
+                        resultVideoThumb.visibility = View.GONE
+                    }
+                }
+            }
+        }
+    }
+
+    private fun readVideoFrame(file: File, reqWidth: Int, reqHeight: Int): Bitmap? {
         return runCatching {
             val retriever = MediaMetadataRetriever()
             try {
                 retriever.setDataSource(file.absolutePath)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    val dm = resources.displayMetrics
                     retriever.getScaledFrameAtTime(
                         1_000_000L,
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        dm.widthPixels,
-                        dm.heightPixels,
+                        reqWidth,
+                        reqHeight,
                     ) ?: retriever.getScaledFrameAtTime(
                         0L,
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        dm.widthPixels,
-                        dm.heightPixels,
+                        reqWidth,
+                        reqHeight,
                     )
                 } else {
                     retriever.getFrameAtTime(1_000_000L, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
@@ -878,6 +983,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     }
 
     private fun cancelAndFinish() {
+        invalidatePreviewLoads()
         stopVideoPreview()
         if (activeRecording != null) {
             deleteAfterFinalize = true
