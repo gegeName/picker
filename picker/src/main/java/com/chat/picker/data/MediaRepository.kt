@@ -27,6 +27,7 @@ object MediaRepository {
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private const val FILE_SCAN_CACHE_TTL_MS = 30_000L
+    private const val NO_MEDIA = ".nomedia"
 
     @Volatile
     private var fileScanCache: FileScanCache? = null
@@ -170,10 +171,12 @@ object MediaRepository {
             if (file.isDirectory) {
                 val key = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
                 if (!visitedDirs.add(key)) continue
-                runCatching { file.listFiles() }.getOrNull()?.forEach { child ->
+                val children = runCatching { file.listFiles() }.getOrNull() ?: continue
+                if (children.any { it.isFile && it.name == NO_MEDIA }) continue
+                children.forEach { child ->
                     if (child.isDirectory) {
-                        if (child.canRead()) stack.add(child)
-                    } else if (child.isFile && child.canRead()) {
+                        if (child.canRead() && !shouldSkipDir(child)) stack.add(child)
+                    } else if (child.isFile && child.canRead() && !child.name.startsWith(".")) {
                         toCandidate(child, filter)?.let { candidates += it }
                     }
                 }
@@ -182,6 +185,12 @@ object MediaRepository {
             }
         }
         return candidates.sortedByDescending { it.modifiedSec }
+    }
+
+    private fun shouldSkipDir(dir: File): Boolean {
+        if (dir.name.startsWith(".")) return true
+        val path = dir.absolutePath.replace(File.separatorChar, '/')
+        return path.endsWith("/Android/data") || path.endsWith("/Android/obb")
     }
 
     @Suppress("DEPRECATION")
@@ -215,11 +224,13 @@ object MediaRepository {
         if (!matchesRequestedType(filter.type, mediaType)) return null
         if (filter.mimeTypes.isNotEmpty() && mime !in filter.mimeTypes) return null
 
+        var knownDurationMs = -1L
         if (filter.maxDurationMs != Long.MAX_VALUE &&
             (mediaType == MediaType.VIDEO || mediaType == MediaType.AUDIO)
         ) {
             val duration = readDurationMs(file)
             if (duration > filter.maxDurationMs) return null
+            knownDurationMs = duration
         }
 
         return FileCandidate(
@@ -228,11 +239,12 @@ object MediaRepository {
             mediaType = mediaType,
             sizeBytes = size,
             modifiedSec = (file.lastModified() / 1000L).coerceAtLeast(0L),
+            knownDurationMs = knownDurationMs,
         )
     }
 
     private fun FileCandidate.toEntity(): MediaEntity {
-        val metadata = readMetadata(file, mediaType)
+        val metadata = readMetadata(file, mediaType, knownDurationMs)
         return MediaEntity(
             id = stableId(file.absolutePath),
             uri = Uri.fromFile(file),
@@ -255,6 +267,7 @@ object MediaRepository {
         val mediaType: MediaType,
         val sizeBytes: Long,
         val modifiedSec: Long,
+        val knownDurationMs: Long = -1L,
     )
 
     private data class FileScanKey(
@@ -292,10 +305,15 @@ object MediaRepository {
             MediaType.ALL -> true
         }
 
-    private fun readMetadata(file: File, type: MediaType): FileMetadata =
+    private fun readMetadata(file: File, type: MediaType, knownDurationMs: Long): FileMetadata =
         when (type) {
             MediaType.IMAGE -> readImageMetadata(file)
-            MediaType.VIDEO, MediaType.AUDIO -> readMediaMetadata(file, type)
+            MediaType.AUDIO -> if (knownDurationMs >= 0) {
+                FileMetadata(durationMs = knownDurationMs)
+            } else {
+                readMediaMetadata(file, type)
+            }
+            MediaType.VIDEO -> readMediaMetadata(file, type)
             else -> FileMetadata()
         }
 
