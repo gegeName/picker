@@ -327,9 +327,20 @@ internal class MediaPreviewAdapter
     }) {
         private val container: FrameLayout = itemView as FrameLayout
         private val boundProvider: IOtherPreviewProvider? = MediaSelector.otherPreviewProvider()
-        private val providerView: View? = boundProvider?.createView(parent)?.also { v ->
+        private val providerView: View? = boundProvider?.createView(parent)
+        private val providerHost: View? = providerView?.let { v ->
+            ViewPager2TouchGuardFrameLayout(parent.context).apply {
+                addView(
+                    v,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
+        }?.also { host ->
             container.addView(
-                v,
+                host,
                 FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT,
