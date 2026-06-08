@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                     .build()
                 PickIt.with(this)
                     .filter(filter)
+                    .imageEngine(PdfCoverImageEngine())
                     .showFirstLoading(true)
                     .maxCount(6)
                     .grid(true)
@@ -97,6 +98,7 @@ class MainActivity : AppCompatActivity() {
             runWithAllFilesAccess {
                 PickIt.with(this)
                     .type(MediaType.ALL)
+                    .imageEngine(PdfCoverImageEngine())
                     .showFirstLoading(true)
                     .maxCount(9)
                     .grid(true)

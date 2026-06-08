@@ -162,13 +162,21 @@ class MediaPickerActivity : AppCompatActivity() {
         if (hasPermission) {
             doLaunchCamera()
         } else {
-            cameraPermLauncher.launch(
-                if (shouldRecordVideoFromCameraEntry()) {
-                    CameraHelper.videoPermissions(this)
-                } else {
-                    CameraHelper.photoPermissions()
-                }
-            )
+            val perms = if (shouldRecordVideoFromCameraEntry()) {
+                CameraHelper.videoPermissions(this)
+            } else {
+                CameraHelper.photoPermissions()
+            }
+            if (!PermissionHelper.hasDeclaredPermissions(this, perms)) {
+                Toast.makeText(
+                    this,
+                    R.string.picker_media_permission_not_declared,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
+            PermissionHelper.logRuntimeRequest(perms)
+            cameraPermLauncher.launch(perms)
         }
     }
 
@@ -295,7 +303,17 @@ class MediaPickerActivity : AppCompatActivity() {
         btnToggle.setOnClickListener { toggleLayout() }
         btnConfirm.setOnClickListener { finishWithResult() }
         findViewById<TextView>(R.id.picker_partial_manage).setOnClickListener {
-            permissionLauncher.launch(PermissionHelper.requiredPermissions(config.filter.type))
+            val perms = PermissionHelper.requiredPermissions(config.filter.type)
+            if (!PermissionHelper.hasDeclaredPermissions(this, perms)) {
+                Toast.makeText(
+                    this,
+                    R.string.picker_media_permission_not_declared,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return@setOnClickListener
+            }
+            PermissionHelper.logRuntimeRequest(perms)
+            permissionLauncher.launch(perms)
         }
         btnPreview.setOnClickListener {
             if (Selection.selected.isEmpty()) return@setOnClickListener
@@ -416,7 +434,10 @@ class MediaPickerActivity : AppCompatActivity() {
 
     @SuppressLint("SetTextI18n")
     private fun updateConfirmButton() {
-        btnConfirm.text = getString(R.string.picker_done_count, Selection.selected.size, effectiveMaxCount)
+        val selectedCount = Selection.selected.size
+        btnConfirm.text = getString(R.string.picker_done_count, selectedCount, effectiveMaxCount)
+        btnConfirm.isEnabled = selectedCount > 0
+        btnConfirm.alpha = if (selectedCount > 0) 1f else 0.55f
     }
 
     private fun requestPermissionsAndLoad() {
@@ -424,7 +445,12 @@ class MediaPickerActivity : AppCompatActivity() {
         if (PermissionHelper.anyUsable(this, config.filter.type)) {
             loadData()
             updatePartialBarVisibility()
+        } else if (!PermissionHelper.hasDeclaredPermissions(this, perms)) {
+            emptyView.visibility = View.VISIBLE
+            (emptyView as TextView).text = getString(R.string.picker_media_permission_not_declared)
+            dismissLoading()
         } else {
+            PermissionHelper.logRuntimeRequest(perms)
             permissionLauncher.launch(perms)
         }
     }

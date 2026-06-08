@@ -22,6 +22,7 @@ import com.chat.picker.api.CameraRecordTrigger
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaType
 import com.chat.picker.ui.CameraCaptureActivity
+import com.chat.picker.ui.PermissionHelper
 import com.chat.picker.util.PickerLog
 import java.io.File
 
@@ -155,17 +156,23 @@ internal object CameraHelper {
         if (hasPhotoPermissions(activity)) {
             doLaunchCamera(activity, onResult); return
         }
+        val perms = photoPermissions()
+        if (!PermissionHelper.hasDeclaredPermissions(activity, perms)) {
+            onResult(false, null, null)
+            return
+        }
         lateinit var permLauncher: ActivityResultLauncher<Array<String>>
         permLauncher = activity.activityResultRegistry.register(
             "picker_camera_perm_${System.currentTimeMillis()}",
             ActivityResultContracts.RequestMultiplePermissions(),
         ) { grants ->
             permLauncher.unregister()
-            val granted = photoPermissions().all { grants[it] == true }
+            val granted = perms.all { grants[it] == true }
             if (granted) doLaunchCamera(activity, onResult)
             else onResult(false, null, null)
         }
-        permLauncher.launch(photoPermissions())
+        PermissionHelper.logRuntimeRequest(perms)
+        permLauncher.launch(perms)
     }
 
     fun record(
@@ -178,17 +185,23 @@ internal object CameraHelper {
         if (hasVideoPermissions(activity)) {
             doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult); return
         }
+        val perms = videoPermissions(activity)
+        if (!PermissionHelper.hasDeclaredPermissions(activity, perms)) {
+            onResult(false, null, null)
+            return
+        }
         lateinit var permLauncher: ActivityResultLauncher<Array<String>>
         permLauncher = activity.activityResultRegistry.register(
             "picker_video_perm_${System.currentTimeMillis()}",
             ActivityResultContracts.RequestMultiplePermissions(),
         ) { grants ->
             permLauncher.unregister()
-            val granted = videoPermissions(activity).all { grants[it] == true }
+            val granted = perms.all { grants[it] == true }
             if (granted) doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult)
             else onResult(false, null, null)
         }
-        permLauncher.launch(videoPermissions(activity))
+        PermissionHelper.logRuntimeRequest(perms)
+        permLauncher.launch(perms)
     }
 
     private fun doLaunchCamera(

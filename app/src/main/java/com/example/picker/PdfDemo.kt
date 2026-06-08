@@ -5,31 +5,35 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
-import android.media.MediaMetadataRetriever
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewConfiguration
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
+import androidx.viewpager2.widget.ViewPager2
+import com.bumptech.glide.Glide
+import com.github.barteksc.pdfviewer.PDFView
+import com.github.barteksc.pdfviewer.scroll.DefaultScrollHandle
 import com.chat.picker.api.PickIt
 import com.chat.picker.loader.IImageEngine
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.preview.IOtherPreviewProvider
 import java.io.File
 import java.util.Locale
-import java.util.concurrent.Executors
 
 object PdfDemo {
     const val MIME = "application/pdf"
@@ -64,7 +68,7 @@ object PdfDemo {
         }
     }
 
-    private fun viewUriFor(context: Context, item: MediaEntity): Uri? {
+    fun viewUriFor(context: Context, item: MediaEntity): Uri? {
         val file = item.filePath
             ?.takeIf { it.isNotBlank() }
             ?.let { File(it) }
@@ -84,90 +88,130 @@ object PdfDemo {
 
 class PdfCoverImageEngine : IImageEngine {
 
-    private val pool = Executors.newFixedThreadPool(2)
-    private val main = Handler(Looper.getMainLooper())
-    private val tokenKey = "pdf_cover_token".hashCode()
-
     override fun loadThumbnail(view: ImageView, item: MediaEntity) {
         when {
-            PdfDemo.isPdf(item) -> setCover(view, PdfCoverRenderer.render(item, 360, 360))
-            item.isImage -> loadAsync(view, item) { decodeImage(item, 360, 360) }
-            item.isVideo -> loadAsync(view, item) { decodeVideoFrame(item) }
-            item.isAudio -> setCover(view, PdfCoverRenderer.renderLabel("AUDIO", 360, 360))
-            else -> setCover(view, PdfCoverRenderer.renderLabel(labelOf(item), 360, 360))
+            PdfDemo.isPdf(item) -> loadRenderedCover(view, PdfCoverRenderer.render(item, 360, 360))
+            item.isImage || item.isVideo -> loadMediaCover(view, item, 360, 360)
+            item.isAudio -> loadAudioCover(view, item, 360, 360)
+            else -> loadRenderedCover(view, PdfCoverRenderer.renderLabel(labelOf(item), 360, 360))
         }
     }
 
     override fun loadOriginal(view: ImageView, item: MediaEntity) {
-        loadThumbnail(view, item)
-    }
-
-    private fun setCover(view: ImageView, bitmap: Bitmap) {
-        view.setTag(tokenKey, nextToken(view))
-        view.background = null
-        view.scaleType = ImageView.ScaleType.CENTER_CROP
-        view.setImageBitmap(bitmap)
-    }
-
-    private fun loadAsync(view: ImageView, item: MediaEntity, decode: () -> Bitmap?) {
-        val current = nextToken(view)
-        view.setTag(tokenKey, current)
-        view.background = null
-        view.scaleType = ImageView.ScaleType.CENTER_CROP
-        view.setImageDrawable(null)
-        pool.execute {
-            val bmp = runCatching { decode() }.getOrNull()
-            main.post {
-                if (view.getTag(tokenKey) != current) return@post
-                if (bmp != null) view.setImageBitmap(bmp)
-                else setCover(view, PdfCoverRenderer.renderLabel(labelOf(item), 360, 360))
-            }
+        if (item.isImage && !PdfDemo.isPdf(item)) {
+            loadMediaCover(view, item, 1080, 1080, fitCenter = true)
+        } else {
+            loadThumbnail(view, item)
         }
     }
-
-    private fun nextToken(view: ImageView): Int =
-        (view.getTag(tokenKey) as? Int ?: 0) + 1
 
     private fun labelOf(item: MediaEntity): String =
         item.displayName.substringAfterLast('.', "FILE").uppercase(Locale.US).take(6)
 
-    private fun decodeImage(item: MediaEntity, reqW: Int, reqH: Int): Bitmap? {
-        val path = item.filePath ?: return null
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, bounds)
-        val sample = maxOf(1, minOf(bounds.outWidth / reqW, bounds.outHeight / reqH))
-        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        return BitmapFactory.decodeFile(path, opts)
+    private fun loadMediaCover(
+        view: ImageView,
+        item: MediaEntity,
+        width: Int,
+        height: Int,
+        fitCenter: Boolean = false,
+    ) {
+        view.background = null
+        view.scaleType = if (fitCenter) ImageView.ScaleType.FIT_CENTER else ImageView.ScaleType.CENTER_CROP
+        val fallback = PdfCoverRenderer.renderLabel(labelOf(item), width, height)
+        val fallbackDrawable = BitmapDrawable(view.resources, fallback)
+        val request = Glide.with(view)
+            .load(modelOf(item))
+            .override(width, height)
+            .placeholder(fallbackDrawable)
+            .error(fallbackDrawable)
+        if (fitCenter) {
+            request.fitCenter().into(view)
+        } else {
+            request.centerCrop().into(view)
+        }
     }
 
-    private fun decodeVideoFrame(item: MediaEntity): Bitmap? {
-        val path = item.filePath ?: return null
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(path)
-            retriever.frameAtTime
-        } catch (_: Throwable) {
-            null
-        } finally {
-            runCatching { retriever.release() }
+    private fun loadAudioCover(view: ImageView, item: MediaEntity, width: Int, height: Int) {
+        val albumArtUri = item.albumArtUri
+        if (albumArtUri == null) {
+            loadRenderedCover(view, PdfCoverRenderer.renderLabel("AUDIO", width, height))
+            return
         }
+        view.background = null
+        view.scaleType = ImageView.ScaleType.CENTER_CROP
+        val fallback = PdfCoverRenderer.renderLabel("AUDIO", width, height)
+        val fallbackDrawable = BitmapDrawable(view.resources, fallback)
+        Glide.with(view)
+            .load(albumArtUri)
+            .override(width, height)
+            .centerCrop()
+            .placeholder(fallbackDrawable)
+            .error(fallbackDrawable)
+            .into(view)
+    }
+
+    private fun loadRenderedCover(view: ImageView, bitmap: Bitmap) {
+        view.background = null
+        view.scaleType = ImageView.ScaleType.CENTER_CROP
+        Glide.with(view)
+            .load(bitmap)
+            .centerCrop()
+            .into(view)
+    }
+
+    private fun modelOf(item: MediaEntity): Any? {
+        if (item.uri != Uri.EMPTY) return item.uri
+        return item.filePath
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(it) }
     }
 }
 
 private object PdfPreviewProvider : IOtherPreviewProvider {
+    private val bindTokenKey = "pdf_preview_bind_token".hashCode()
+
     override fun createView(parent: ViewGroup): View {
         val ctx = parent.context
         return LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(32.dp(ctx), 32.dp(ctx), 32.dp(ctx), 32.dp(ctx))
+            setPadding(16.dp(ctx), 16.dp(ctx), 16.dp(ctx), 16.dp(ctx))
             addView(
-                ImageView(ctx).apply {
-                    id = R.id.pdf_cover
-                    adjustViewBounds = true
-                    scaleType = ImageView.ScaleType.CENTER_CROP
+                FrameLayout(ctx).apply {
+                    addView(
+                        PDFView(ctx, null).apply {
+                            id = R.id.pdf_view
+                            visibility = View.GONE
+                            setBackgroundColor(Color.parseColor("#2B2B2B"))
+                            setPdfTouchGuard()
+                        },
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        ),
+                    )
+                    addView(
+                        ImageView(ctx).apply {
+                            id = R.id.pdf_cover
+                            adjustViewBounds = true
+                            scaleType = ImageView.ScaleType.CENTER_CROP
+                        },
+                        FrameLayout.LayoutParams(220.dp(ctx), 220.dp(ctx), Gravity.CENTER),
+                    )
+                    addView(
+                        ProgressBar(ctx).apply {
+                            id = R.id.pdf_loading
+                            isIndeterminate = true
+                            visibility = View.GONE
+                        },
+                        FrameLayout.LayoutParams(48.dp(ctx), 48.dp(ctx), Gravity.CENTER),
+                    )
                 },
-                LinearLayout.LayoutParams(220.dp(ctx), 220.dp(ctx)),
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    0,
+                    1f,
+                ),
             )
             addView(
                 TextView(ctx).apply {
@@ -201,7 +245,7 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
             addView(
                 Button(ctx).apply {
                     id = R.id.pdf_open
-                    text = "Open PDF"
+                    text = "Open file"
                 },
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -216,21 +260,19 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
     override fun bindView(view: View, item: MediaEntity) {
         val ctx = view.context
         val isPdf = PdfDemo.isPdf(item)
-        view.findViewById<ImageView>(R.id.pdf_cover)
-            ?.setImageBitmap(
-                if (isPdf) {
-                    PdfCoverRenderer.render(item, 720, 720)
-                } else {
-                    PdfCoverRenderer.renderLabel(
-                        item.displayName.substringAfterLast('.', "FILE")
-                            .uppercase(Locale.US)
-                            .take(6),
-                        720,
-                        720,
-                        item.displayName.substringBeforeLast('.', item.displayName),
-                    )
-                }
-            )
+        val token = (view.getTag(bindTokenKey) as? Int ?: 0) + 1
+        view.setTag(bindTokenKey, token)
+
+        val pdfView = view.findViewById<PDFView>(R.id.pdf_view)
+        val cover = view.findViewById<ImageView>(R.id.pdf_cover)
+        val loading = view.findViewById<ProgressBar>(R.id.pdf_loading)
+
+        if (isPdf) {
+            bindPdfView(view, item, token, pdfView, cover, loading)
+        } else {
+            bindFileCover(item, pdfView, cover, loading)
+        }
+
         view.findViewById<TextView>(R.id.pdf_title)?.text = item.displayName
         view.findViewById<TextView>(R.id.pdf_meta)?.text = buildString {
             append(item.mimeType.ifBlank { if (isPdf) PdfDemo.MIME else "application/octet-stream" })
@@ -238,18 +280,165 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
             append(formatSize(item.sizeBytes))
         }
         view.findViewById<Button>(R.id.pdf_open)?.apply {
-            text = if (isPdf) "Open PDF" else "Open file"
+            visibility = if (isPdf) View.GONE else View.VISIBLE
+            text = "Open file"
             setOnClickListener {
-                val opened = if (isPdf) {
-                    PdfDemo.openFile(ctx, item, PdfDemo.MIME) || PdfDemo.openFile(ctx, item, "*/*")
-                } else {
-                    PdfDemo.openFile(ctx, item, item.mimeType.ifBlank { "*/*" }) ||
-                        PdfDemo.openFile(ctx, item, "*/*")
-                }
+                val opened = PdfDemo.openFile(ctx, item, item.mimeType.ifBlank { "*/*" }) ||
+                    PdfDemo.openFile(ctx, item, "*/*")
                 if (!opened) {
                     Toast.makeText(ctx, "No app can open this file", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    override fun onViewRecycled(view: View) {
+        view.findViewById<PDFView>(R.id.pdf_view)?.let { pdfView ->
+            runCatching { pdfView.recycle() }
+            pdfView.visibility = View.GONE
+        }
+        view.findViewById<ProgressBar>(R.id.pdf_loading)?.visibility = View.GONE
+        view.findViewById<ImageView>(R.id.pdf_cover)?.setImageDrawable(null)
+    }
+
+    private fun bindPdfView(
+        root: View,
+        item: MediaEntity,
+        token: Int,
+        pdfView: PDFView?,
+        cover: ImageView?,
+        loading: ProgressBar?,
+    ) {
+        pdfView ?: return
+        cover?.visibility = View.GONE
+        loading?.visibility = View.VISIBLE
+        pdfView.visibility = View.VISIBLE
+
+        runCatching { pdfView.recycle() }
+        val uri = PdfDemo.viewUriFor(root.context, item)
+        if (uri == null) {
+            loading?.visibility = View.GONE
+            cover?.let {
+                it.visibility = View.VISIBLE
+                loadFallbackCover(it, item)
+            }
+            return
+        }
+
+        pdfView.fromUri(uri)
+            .enableSwipe(true)
+            .swipeHorizontal(false)
+            .enableDoubletap(true)
+            .enableAnnotationRendering(true)
+            .scrollHandle(DefaultScrollHandle(root.context))
+            .onLoad {
+                if (root.getTag(bindTokenKey) == token) {
+                    loading?.visibility = View.GONE
+                }
+            }
+            .onError {
+                if (root.getTag(bindTokenKey) == token) {
+                    loading?.visibility = View.GONE
+                    pdfView.visibility = View.GONE
+                    cover?.let { image ->
+                        image.visibility = View.VISIBLE
+                        loadFallbackCover(image, item)
+                    }
+                    Toast.makeText(root.context, "Unable to open PDF", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .load()
+    }
+
+    private fun bindFileCover(
+        item: MediaEntity,
+        pdfView: PDFView?,
+        cover: ImageView?,
+        loading: ProgressBar?,
+    ) {
+        loading?.visibility = View.GONE
+        pdfView?.let {
+            runCatching { it.recycle() }
+            it.visibility = View.GONE
+        }
+        cover?.let {
+            it.visibility = View.VISIBLE
+            loadFallbackCover(it, item)
+        }
+    }
+
+    private fun loadFallbackCover(cover: ImageView, item: MediaEntity) {
+        cover.background = null
+        cover.scaleType = ImageView.ScaleType.CENTER_CROP
+        Glide.with(cover).load(
+            PdfCoverRenderer.renderLabel(
+                item.displayName.substringAfterLast('.', "FILE")
+                    .uppercase(Locale.US)
+                    .take(6),
+                720,
+                720,
+                item.displayName.substringBeforeLast('.', item.displayName),
+            )
+        ).centerCrop().into(cover)
+    }
+
+    private fun PDFView.setPdfTouchGuard() {
+        val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var decided = false
+        setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    decided = false
+                    v.requestPagerInterceptAllowed()
+                }
+
+                MotionEvent.ACTION_POINTER_DOWN -> {
+                    decided = true
+                    v.setPagerInputEnabled(false)
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.pointerCount > 1) {
+                        decided = true
+                        v.setPagerInputEnabled(false)
+                    } else if (!decided) {
+                        val dx = kotlin.math.abs(event.x - downX)
+                        val dy = kotlin.math.abs(event.y - downY)
+                        if (dx > touchSlop || dy > touchSlop) {
+                            decided = true
+                            v.setPagerInputEnabled(dy <= dx)
+                        }
+                    }
+                }
+
+                MotionEvent.ACTION_UP,
+                MotionEvent.ACTION_CANCEL,
+                -> {
+                    decided = false
+                    v.setPagerInputEnabled(true)
+                }
+            }
+            false
+        }
+    }
+
+    private fun View.requestPagerInterceptAllowed() {
+        parent?.requestDisallowInterceptTouchEvent(false)
+    }
+
+    private fun View.setPagerInputEnabled(enabled: Boolean) {
+        parent?.requestDisallowInterceptTouchEvent(!enabled)
+        var current = parent
+        while (current != null) {
+            if (current is ViewPager2) {
+                current.isUserInputEnabled = enabled
+                return
+            }
+            current = current.parent
         }
     }
 

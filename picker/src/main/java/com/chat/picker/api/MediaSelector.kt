@@ -2,8 +2,10 @@ package com.chat.picker.api
 
 import android.content.Context
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.fragment.app.Fragment
+import com.chat.picker.R
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
@@ -15,6 +17,8 @@ import com.chat.picker.model.MediaEntity
 import com.chat.picker.model.MediaFilter
 import com.chat.picker.model.MediaType
 import com.chat.picker.preview.IOtherPreviewProvider
+import com.chat.picker.ui.PermissionHelper
+import com.chat.picker.util.StorageAccess
 
 /**
  * 入口。用法：
@@ -394,6 +398,17 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         } else if (shouldUseSystemPhotoPicker()) {
             MediaSelectorInternal.launchSystemPicker(activity, cfg, listener)
         } else {
+            val perms = PermissionHelper.requiredPermissions(cfg.filter.type)
+            if (!StorageAccess.hasAllFilesAccess() &&
+                !PermissionHelper.hasDeclaredPermissions(activity, perms)
+            ) {
+                Toast.makeText(
+                    activity,
+                    R.string.picker_media_permission_not_declared,
+                    Toast.LENGTH_SHORT,
+                ).show()
+                return
+            }
             MediaSelectorInternal.launchInternalPicker(activity, cfg, listener)
         }
     }

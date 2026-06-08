@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="pdf_cover" type="id" />
+    <item name="pdf_view" type="id" />
+    <item name="pdf_loading" type="id" />
     <item name="pdf_title" type="id" />
     <item name="pdf_meta" type="id" />
     <item name="pdf_open" type="id" />

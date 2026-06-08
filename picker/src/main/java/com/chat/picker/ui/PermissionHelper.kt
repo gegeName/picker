@@ -6,9 +6,13 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import com.chat.picker.model.MediaType
+import com.chat.picker.util.PickerLog
 import com.chat.picker.util.StorageAccess
 
 internal object PermissionHelper {
+    private const val READ_MEDIA_VISUAL_USER_SELECTED =
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+
     fun requiredPermissions(type: MediaType): Array<String> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             return arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -32,9 +36,41 @@ internal object PermissionHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
             (type == MediaType.IMAGE || type == MediaType.IMAGE_VIDEO || type == MediaType.ALL)
         ) {
-            list += "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+            list += READ_MEDIA_VISUAL_USER_SELECTED
         }
         return list.toTypedArray()
+    }
+
+    fun missingManifestPermissions(ctx: Context, perms: Array<String>): List<String> {
+        val declared = declaredPermissions(ctx)
+        return perms.filterNot { it in declared }
+    }
+
+    fun hasDeclaredPermissions(ctx: Context, perms: Array<String>): Boolean {
+        val missing = missingManifestPermissions(ctx, perms)
+        if (missing.isNotEmpty()) {
+            PickerLog.w(
+                buildString {
+                    append("Missing permission declarations in AndroidManifest.xml. ")
+                    append("Required permissions: ")
+                    append(perms.joinToString(prefix = "[", postfix = "]"))
+                    append(", missing: ")
+                    append(missing.joinToString(prefix = "[", postfix = "]"))
+                    append(". Runtime permission request is skipped. Add to app manifest: ")
+                    append(missing.joinToString(separator = " ") { permission ->
+                        "<uses-permission android:name=\"$permission\" />"
+                    })
+                }
+            )
+        }
+        return missing.isEmpty()
+    }
+
+    fun logRuntimeRequest(perms: Array<String>) {
+        PickerLog.d(
+            "Requesting runtime permissions: " +
+                perms.joinToString(prefix = "[", postfix = "]")
+        )
     }
 
     fun allGranted(ctx: Context, perms: Array<String>): Boolean =
@@ -49,7 +85,7 @@ internal object PermissionHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
             (type == MediaType.IMAGE || type == MediaType.IMAGE_VIDEO || type == MediaType.ALL)
         ) {
-            return granted(ctx, "android.permission.READ_MEDIA_VISUAL_USER_SELECTED")
+            return granted(ctx, READ_MEDIA_VISUAL_USER_SELECTED)
         }
         return false
     }
@@ -83,7 +119,7 @@ internal object PermissionHelper {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return false
         if (type == MediaType.AUDIO) return false
         val visualSelected = ContextCompat.checkSelfPermission(
-            ctx, "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+            ctx, READ_MEDIA_VISUAL_USER_SELECTED
         ) == PackageManager.PERMISSION_GRANTED
         val imagesFull = ContextCompat.checkSelfPermission(
             ctx, Manifest.permission.READ_MEDIA_IMAGES
@@ -92,5 +128,18 @@ internal object PermissionHelper {
             ctx, Manifest.permission.READ_MEDIA_VIDEO
         ) == PackageManager.PERMISSION_GRANTED
         return visualSelected && !imagesFull && !videoFull
+    }
+
+    private fun declaredPermissions(ctx: Context): Set<String> {
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ctx.packageManager.getPackageInfo(
+                ctx.packageName,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            ctx.packageManager.getPackageInfo(ctx.packageName, PackageManager.GET_PERMISSIONS)
+        }
+        return info.requestedPermissions?.toSet().orEmpty()
     }
 }

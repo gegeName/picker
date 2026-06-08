@@ -42,6 +42,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("com.github.bumptech.glide:glide:5.0.7")
+    implementation("io.github.oothp:android-pdf-viewer:3.2.0-beta06")
     implementation("com.burhanrashid52:photoeditor:3.1.0")
     implementation(project(":picker"))
     implementation(libs.material)
