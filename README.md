@@ -86,7 +86,50 @@ dependencies {
 
 `compileSdk` 只影响编译环境；接入方不需要因此同步提升 `targetSdk`。
 
-库内已声明媒体读取、相机、FileProvider 等基础配置，正常情况下会自动合并到宿主 `AndroidManifest.xml`。
+## 权限声明
+
+库内不再自动声明媒体读取、相机、录音、网络等权限，接入方需要在宿主 `AndroidManifest.xml` 中按业务需要自行添加。框架在申请运行时权限前会检查宿主 Manifest；如果缺少声明，会在 Logcat 中打印需要补充的权限，并跳过权限申请。
+
+常用权限示例：
+
+```xml
+<!-- Android 12 及以下读取媒体文件 -->
+<uses-permission
+    android:name="android.permission.READ_EXTERNAL_STORAGE"
+    android:maxSdkVersion="32" />
+
+<!-- Android 9 及以下保存拍摄文件到公共目录时需要 -->
+<uses-permission
+    android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+    android:maxSdkVersion="28" />
+
+<!-- Android 13+ 按媒体类型读取 -->
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+
+<!-- Android 14+ 部分照片/视频访问 -->
+<uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
+<!-- 拍照 / 录像 -->
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+<!-- 如果业务需要所有文件访问，需要宿主自行声明并引导用户授权 -->
+<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+<!-- 如果自定义图片加载、封面或预览需要网络访问 -->
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+按场景选择：
+
+- 只选图片：`READ_MEDIA_IMAGES`；兼容 Android 12 及以下时再加 `READ_EXTERNAL_STORAGE`。
+- 只选视频：`READ_MEDIA_VIDEO`；兼容 Android 12 及以下时再加 `READ_EXTERNAL_STORAGE`。
+- 只选音频：`READ_MEDIA_AUDIO`；兼容 Android 12 及以下时再加 `READ_EXTERNAL_STORAGE`。
+- 图片 + 视频：`READ_MEDIA_IMAGES`、`READ_MEDIA_VIDEO`；Android 14+ 如需部分访问体验可加 `READ_MEDIA_VISUAL_USER_SELECTED`。
+- 拍照：`CAMERA`；Android 9 及以下如需写公共目录再加 `WRITE_EXTERNAL_STORAGE`。
+- 录像：`CAMERA`、`RECORD_AUDIO`；Android 9 及以下如需写公共目录再加 `WRITE_EXTERNAL_STORAGE`。
 
 ## 快速使用案例
 
