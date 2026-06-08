@@ -84,6 +84,16 @@ internal class MediaPreviewAdapter
         }
     }
 
+    override fun onViewAttachedToWindow(holder: RecyclerView.ViewHolder) {
+        super.onViewAttachedToWindow(holder)
+        if (holder is OtherVH) holder.attach()
+    }
+
+    override fun onViewDetachedFromWindow(holder: RecyclerView.ViewHolder) {
+        if (holder is OtherVH) holder.detach()
+        super.onViewDetachedFromWindow(holder)
+    }
+
     private inner class ImageVH(v: View) : RecyclerView.ViewHolder(v) {
         val image: ImageView = v.findViewById(R.id.page_image)
         private val loading: ProgressBar = v.findViewById(R.id.page_loading)
@@ -430,6 +440,18 @@ internal class MediaPreviewAdapter
 
         private val Int.dp: Int
             get() = (this * itemView.resources.displayMetrics.density).toInt()
+
+        fun attach() {
+            providerView?.let { v ->
+                boundProvider?.onViewAttachedToWindow(v)
+            }
+        }
+
+        fun detach() {
+            providerView?.let { v ->
+                boundProvider?.onViewDetachedFromWindow(v)
+            }
+        }
 
         fun release() {
             providerView?.let { v ->

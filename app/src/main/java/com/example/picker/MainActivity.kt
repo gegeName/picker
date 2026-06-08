@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btn_pick_mixed).setOnClickListener {
             runWithAllFilesAccess {
                 val filter = MediaFilter.Builder(MediaType.ALL)
-                    .addMimeType("video/mp4", "application/pdf", "application/zip")
+                    .addMimeType("application/pdf", "application/zip")
                     .build()
                 PickIt.with(this)
                     .filter(filter)

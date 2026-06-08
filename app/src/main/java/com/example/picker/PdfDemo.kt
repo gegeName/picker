@@ -12,10 +12,8 @@ import android.graphics.RectF
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewConfiguration
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -24,7 +22,6 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.FileProvider
-import androidx.viewpager2.widget.ViewPager2
 import com.bumptech.glide.Glide
 import com.github.barteksc.pdfviewer.PDFView
 import com.github.barteksc.pdfviewer.scroll.DefaultScrollHandle
@@ -169,6 +166,7 @@ class PdfCoverImageEngine : IImageEngine {
 
 private object PdfPreviewProvider : IOtherPreviewProvider {
     private val bindTokenKey = "pdf_preview_bind_token".hashCode()
+    private val loadedUriKey = "pdf_preview_loaded_uri".hashCode()
 
     override fun createView(parent: ViewGroup): View {
         val ctx = parent.context
@@ -183,7 +181,6 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
                             id = R.id.pdf_view
                             visibility = View.GONE
                             setBackgroundColor(Color.parseColor("#2B2B2B"))
-                            setPdfTouchGuard()
                         },
                         FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -292,11 +289,16 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
         }
     }
 
+    override fun onViewDetachedFromWindow(view: View) {
+        super.onViewDetachedFromWindow(view)
+    }
+
+    override fun onViewAttachedToWindow(view: View) {
+        super.onViewAttachedToWindow(view)
+    }
+
+
     override fun onViewRecycled(view: View) {
-        view.findViewById<PDFView>(R.id.pdf_view)?.let { pdfView ->
-            runCatching { pdfView.recycle() }
-            pdfView.visibility = View.GONE
-        }
         view.findViewById<ProgressBar>(R.id.pdf_loading)?.visibility = View.GONE
         view.findViewById<ImageView>(R.id.pdf_cover)?.setImageDrawable(null)
     }
@@ -310,13 +312,11 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
         loading: ProgressBar?,
     ) {
         pdfView ?: return
-        cover?.visibility = View.GONE
-        loading?.visibility = View.VISIBLE
-        pdfView.visibility = View.VISIBLE
-
-        runCatching { pdfView.recycle() }
         val uri = PdfDemo.viewUriFor(root.context, item)
         if (uri == null) {
+            runCatching { pdfView.recycle() }
+            pdfView.setTag(loadedUriKey, null)
+            pdfView.visibility = View.GONE
             loading?.visibility = View.GONE
             cover?.let {
                 it.visibility = View.VISIBLE
@@ -324,6 +324,17 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
             }
             return
         }
+        cover?.visibility = View.GONE
+        pdfView.visibility = View.VISIBLE
+
+        if (pdfView.getTag(loadedUriKey) == uri) {
+            loading?.visibility = View.GONE
+            return
+        }
+
+        loading?.visibility = View.VISIBLE
+        runCatching { pdfView.recycle() }
+        pdfView.setTag(loadedUriKey, uri)
 
         pdfView.fromUri(uri)
             .enableSwipe(true)
@@ -338,6 +349,7 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
             }
             .onError {
                 if (root.getTag(bindTokenKey) == token) {
+                    pdfView.setTag(loadedUriKey, null)
                     loading?.visibility = View.GONE
                     pdfView.visibility = View.GONE
                     cover?.let { image ->
@@ -359,6 +371,7 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
         loading?.visibility = View.GONE
         pdfView?.let {
             runCatching { it.recycle() }
+            it.setTag(loadedUriKey, null)
             it.visibility = View.GONE
         }
         cover?.let {
@@ -380,66 +393,6 @@ private object PdfPreviewProvider : IOtherPreviewProvider {
                 item.displayName.substringBeforeLast('.', item.displayName),
             )
         ).centerCrop().into(cover)
-    }
-
-    private fun PDFView.setPdfTouchGuard() {
-        val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-        var downX = 0f
-        var downY = 0f
-        var decided = false
-        setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    downX = event.x
-                    downY = event.y
-                    decided = false
-                    v.requestPagerInterceptAllowed()
-                }
-
-                MotionEvent.ACTION_POINTER_DOWN -> {
-                    decided = true
-                    v.setPagerInputEnabled(false)
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-                    if (event.pointerCount > 1) {
-                        decided = true
-                        v.setPagerInputEnabled(false)
-                    } else if (!decided) {
-                        val dx = kotlin.math.abs(event.x - downX)
-                        val dy = kotlin.math.abs(event.y - downY)
-                        if (dx > touchSlop || dy > touchSlop) {
-                            decided = true
-                            v.setPagerInputEnabled(dy <= dx)
-                        }
-                    }
-                }
-
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL,
-                -> {
-                    decided = false
-                    v.setPagerInputEnabled(true)
-                }
-            }
-            false
-        }
-    }
-
-    private fun View.requestPagerInterceptAllowed() {
-        parent?.requestDisallowInterceptTouchEvent(false)
-    }
-
-    private fun View.setPagerInputEnabled(enabled: Boolean) {
-        parent?.requestDisallowInterceptTouchEvent(!enabled)
-        var current = parent
-        while (current != null) {
-            if (current is ViewPager2) {
-                current.isUserInputEnabled = enabled
-                return
-            }
-            current = current.parent
-        }
     }
 
     private fun Int.dp(context: Context): Int =

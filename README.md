@@ -442,6 +442,8 @@ PickIt.pickFiles(
 | `MediaSelector.setOtherPreviewProvider(provider)` | 全局注册其他文件预览扩展 |
 | `IOtherPreviewProvider.createView(parent)` | 在 `onCreateViewHolder` 阶段调用，只负责创建 View |
 | `IOtherPreviewProvider.bindView(view, item)` | 每次绑定文件数据时调用 |
+| `IOtherPreviewProvider.onViewAttachedToWindow(view)` | View 进入窗口时调用，可用于恢复渲染、监听或播放 |
+| `IOtherPreviewProvider.onViewDetachedFromWindow(view)` | View 离开窗口时调用，可用于暂停渲染、监听或播放 |
 | `IOtherPreviewProvider.onViewRecycled(view)` | View 被回收前调用，用于清理下载、渲染任务等 |
 
 适用于 PDF、DOC/DOCX、XLS/XLSX、PPT/PPTX、TXT、ZIP 等非图片/视频/音频文件的自定义预览。业务方可以把“打开文档”的能力通过 `IOtherPreviewProvider` 给到框架：框架负责在预览页创建和复用容器，业务方在 `bindView` 中根据当前 `MediaEntity` 打开或渲染对应文档，例如加载 PDF、展示 Office 文档预览、显示 TXT 内容，或接入自己的文档预览 SDK。
