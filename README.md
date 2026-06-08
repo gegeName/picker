@@ -65,7 +65,7 @@ dependencyResolutionManagement {
 
 ```groovy
 dependencies {
-    implementation 'com.github.gegeName:picker:0.1.2'
+    implementation 'com.github.gegeName:picker:0.1.3'
 }
 ```
 
@@ -73,7 +73,7 @@ Kotlin DSL：
 
 ```kotlin
 dependencies {
-    implementation("com.github.gegeName:picker:0.1.2")
+    implementation("com.github.gegeName:picker:0.1.3")
 }
 ```
 
