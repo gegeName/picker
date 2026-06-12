@@ -88,7 +88,11 @@ internal object CameraHelper {
         )
     }
 
-    fun makeVideoEntity(filePath: String, uri: Uri): MediaEntity {
+    fun makeVideoEntity(
+        filePath: String,
+        uri: Uri,
+        mirrorHorizontal: Boolean = false,
+    ): MediaEntity {
         val now = System.currentTimeMillis()
         val file = File(filePath)
         val size = if (file.exists()) file.length() else 0L
@@ -105,6 +109,7 @@ internal object CameraHelper {
             width = meta.width,
             height = meta.height,
             mediaType = MediaType.VIDEO,
+            mirrorHorizontal = mirrorHorizontal,
         )
     }
 
@@ -180,14 +185,14 @@ internal object CameraHelper {
         maxDurationMs: Long = 0L,
         countDown: Boolean = false,
         trigger: CameraRecordTrigger = CameraRecordTrigger.CLICK,
-        onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
+        onResult: (success: Boolean, filePath: String?, uri: Uri?, mirrorHorizontal: Boolean) -> Unit,
     ) {
         if (hasVideoPermissions(activity)) {
             doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult); return
         }
         val perms = videoPermissions(activity)
         if (!PermissionHelper.hasDeclaredPermissions(activity, perms)) {
-            onResult(false, null, null)
+            onResult(false, null, null, false)
             return
         }
         lateinit var permLauncher: ActivityResultLauncher<Array<String>>
@@ -198,7 +203,7 @@ internal object CameraHelper {
             permLauncher.unregister()
             val granted = perms.all { grants[it] == true }
             if (granted) doLaunchVideo(activity, maxDurationMs, countDown, trigger, onResult)
-            else onResult(false, null, null)
+            else onResult(false, null, null, false)
         }
         PermissionHelper.logRuntimeRequest(perms)
         permLauncher.launch(perms)
@@ -247,7 +252,7 @@ internal object CameraHelper {
         maxDurationMs: Long,
         countDown: Boolean,
         trigger: CameraRecordTrigger,
-        onResult: (success: Boolean, filePath: String?, uri: Uri?) -> Unit,
+        onResult: (success: Boolean, filePath: String?, uri: Uri?, mirrorHorizontal: Boolean) -> Unit,
     ) {
         val pending = prepareVideo(activity)
         lateinit var launcher: ActivityResultLauncher<Intent>
@@ -263,12 +268,16 @@ internal object CameraHelper {
                 "Custom video result=${result.resultCode} exists=$exists size=$len path=${pending.filePath}"
             )
             val ok = result.resultCode == Activity.RESULT_OK && exists && len > 0
+            val mirrorHorizontal = result.data?.getBooleanExtra(
+                CameraCaptureActivity.EXTRA_MIRROR_HORIZONTAL,
+                false,
+            ) == true
             if (ok) {
                 pending.onSuccess()
-                onResult(true, pending.filePath, pending.uri)
+                onResult(true, pending.filePath, pending.uri, mirrorHorizontal)
             } else {
                 pending.onFail()
-                onResult(false, null, null)
+                onResult(false, null, null, false)
             }
         }
         launcher.launch(

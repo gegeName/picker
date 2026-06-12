@@ -53,6 +53,7 @@
     <string name="picker_camera_flash_off">闪光关</string>
     <string name="picker_camera_torch_on">常亮开</string>
     <string name="picker_camera_torch_off">常亮关</string>
+    <string name="picker_camera_switch">翻转</string>
     <string name="picker_camera_record">录制</string>
     <string name="picker_camera_stop">停止</string>
     <string name="picker_camera_pause">暂停</string>

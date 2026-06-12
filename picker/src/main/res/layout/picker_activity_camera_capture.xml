@@ -113,9 +113,20 @@
             android:id="@+id/camera_torch"
             android:layout_width="wrap_content"
             android:layout_height="38dp"
+            android:layout_marginEnd="8dp"
             android:background="@drawable/picker_bg_camera_chip"
             android:gravity="center"
             android:text="@string/picker_camera_torch_off"
+            android:textColor="@android:color/white"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/camera_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="38dp"
+            android:background="@drawable/picker_bg_camera_chip"
+            android:gravity="center"
+            android:text="@string/picker_camera_switch"
             android:textColor="@android:color/white"
             android:textSize="12sp" />
     </LinearLayout>

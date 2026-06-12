@@ -18,6 +18,7 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
 
     override fun needsCompress(item: MediaEntity): Boolean {
         if (!item.isVideo) return false
+        if (item.mirrorHorizontal) return true
         val size = item.sizeBytes
         val duration = item.durationMs
         val longSide = maxOf(item.width, item.height)
@@ -44,7 +45,7 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
             val dir = File(app.cacheDir, DIR_NAME).apply { mkdirs() }
             val outFile = File(dir, "VID_${System.currentTimeMillis()}.mp4")
             val result = VideoTranscoder(maxLongSide, targetBitRate, frameRate)
-                .transcode(app, item.uri, outFile) { percent ->
+                .transcode(app, item.uri, outFile, item.mirrorHorizontal) { percent ->
                     callback.onProgress(percent)
                 }
 
@@ -54,7 +55,7 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
                 return
             }
 
-            if (item.sizeBytes > 0L && outFile.length() >= item.sizeBytes) {
+            if (!item.mirrorHorizontal && item.sizeBytes > 0L && outFile.length() >= item.sizeBytes) {
                 PickerLog.d("compressed video is not smaller, fallback original")
                 runCatching { outFile.delete() }
                 callback.onError(IllegalStateException("compressed larger than source"))
@@ -78,6 +79,7 @@ class MediaCodecVideoCompressor @JvmOverloads constructor(
                     mimeType = "video/mp4",
                     width = result.width,
                     height = result.height,
+                    mirrorHorizontal = false,
                 ),
             )
         } catch (e: Throwable) {

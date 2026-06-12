@@ -476,7 +476,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
          */
         @JvmStatic
         fun takeVideo(activity: ComponentActivity, listener: OnVideoRecordedListener) {
-            CameraHelper.record(activity) { ok, path, uri ->
+            CameraHelper.record(activity) { ok, path, uri, _ ->
                 if (ok) invalidateCache()
                 listener.onResult(ok, path, uri)
             }
@@ -491,7 +491,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             trigger: CameraRecordTrigger = CameraRecordTrigger.CLICK,
             listener: OnVideoRecordedListener,
         ) {
-            CameraHelper.record(activity, maxDurationMs, countDown, trigger) { ok, path, uri ->
+            CameraHelper.record(activity, maxDurationMs, countDown, trigger) { ok, path, uri, _ ->
                 if (ok) invalidateCache()
                 listener.onResult(ok, path, uri)
             }

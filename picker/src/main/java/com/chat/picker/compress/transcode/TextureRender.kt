@@ -8,14 +8,25 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
-internal class TextureRender {
+internal class TextureRender(
+    mirrorHorizontal: Boolean = false,
+) {
 
-    private val triangleVerticesData = floatArrayOf(
-        -1.0f, -1.0f, 0f, 0f, 0f,
-        1.0f, -1.0f, 0f, 1f, 0f,
-        -1.0f, 1.0f, 0f, 0f, 1f,
-        1.0f, 1.0f, 0f, 1f, 1f,
-    )
+    private val triangleVerticesData = if (mirrorHorizontal) {
+        floatArrayOf(
+            -1.0f, -1.0f, 0f, 1f, 0f,
+            1.0f, -1.0f, 0f, 0f, 0f,
+            -1.0f, 1.0f, 0f, 1f, 1f,
+            1.0f, 1.0f, 0f, 0f, 1f,
+        )
+    } else {
+        floatArrayOf(
+            -1.0f, -1.0f, 0f, 0f, 0f,
+            1.0f, -1.0f, 0f, 1f, 0f,
+            -1.0f, 1.0f, 0f, 0f, 1f,
+            1.0f, 1.0f, 0f, 1f, 1f,
+        )
+    }
 
     private val triangleVertices: FloatBuffer = ByteBuffer
         .allocateDirect(triangleVerticesData.size * FLOAT_SIZE_BYTES)

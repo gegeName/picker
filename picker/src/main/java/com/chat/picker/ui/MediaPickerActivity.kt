@@ -25,6 +25,7 @@ import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.compress.MediaCodecVideoCompressor
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.ImageLoader
 import com.chat.picker.model.MediaEntity
@@ -120,7 +121,11 @@ class MediaPickerActivity : AppCompatActivity() {
         if (ok) {
             p.onSuccess()
             val entity = if (shouldRecordVideoFromCameraEntry()) {
-                CameraHelper.makeVideoEntity(p.filePath, p.uri)
+                val mirrorHorizontal = result.data?.getBooleanExtra(
+                    CameraCaptureActivity.EXTRA_MIRROR_HORIZONTAL,
+                    false,
+                ) == true
+                CameraHelper.makeVideoEntity(p.filePath, p.uri, mirrorHorizontal)
             } else {
                 CameraHelper.makeEntity(p.filePath, p.uri)
             }
@@ -834,7 +839,7 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun finishAfterCrop(list: List<MediaEntity>) {
         val imageC = MediaSelector.imageCompressor()
-        val videoC = MediaSelector.videoCompressor()
+        val videoC = MediaSelector.videoCompressor() ?: defaultVideoFixerFor(list)
 
         val needCompress = list.any { item ->
             (item.isImage && imageC != null && imageC.needsCompress(item)) ||
@@ -1000,6 +1005,13 @@ class MediaPickerActivity : AppCompatActivity() {
                     append(getString(R.string.picker_compress_video_percent, vidPercent))
                 }
             }
+        }
+
+    private fun defaultVideoFixerFor(list: List<MediaEntity>): IVideoCompressor? =
+        if (list.any { it.isVideo && it.mirrorHorizontal }) {
+            MediaCodecVideoCompressor()
+        } else {
+            null
         }
 
     private fun deliverResult(list: List<MediaEntity>) {

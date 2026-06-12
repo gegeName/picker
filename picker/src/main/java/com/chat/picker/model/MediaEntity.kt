@@ -21,6 +21,7 @@ data class MediaEntity(
     val mediaType: MediaType,
     /** 音频专辑 id（仅 AUDIO 有值），用于拼 albumart uri 加载封面 */
     val albumId: Long = 0L,
+    val mirrorHorizontal: Boolean = false,
 ) : Parcelable {
 
     val isImage: Boolean get() = mimeType.startsWith("image/")
@@ -46,6 +47,7 @@ data class MediaEntity(
         parcel.readInt(),
         MediaType.values()[parcel.readInt()],
         parcel.readLong(),
+        if (parcel.dataAvail() > 0) parcel.readByte() != 0.toByte() else false,
     )
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
@@ -61,6 +63,7 @@ data class MediaEntity(
         dest.writeInt(height)
         dest.writeInt(mediaType.ordinal)
         dest.writeLong(albumId)
+        dest.writeByte(if (mirrorHorizontal) 1 else 0)
     }
 
     override fun describeContents(): Int = 0

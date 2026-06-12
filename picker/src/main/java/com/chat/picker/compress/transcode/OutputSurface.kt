@@ -3,7 +3,9 @@ package com.chat.picker.compress.transcode
 import android.graphics.SurfaceTexture
 import android.view.Surface
 
-internal class OutputSurface : SurfaceTexture.OnFrameAvailableListener {
+internal class OutputSurface(
+    mirrorHorizontal: Boolean = false,
+) : SurfaceTexture.OnFrameAvailableListener {
 
     private var surfaceTexture: SurfaceTexture? = null
     var surface: Surface? = null
@@ -11,7 +13,7 @@ internal class OutputSurface : SurfaceTexture.OnFrameAvailableListener {
 
     private val frameSyncObject = Object()
     private var frameAvailable = false
-    private val textureRender = TextureRender()
+    private val textureRender = TextureRender(mirrorHorizontal)
 
     init {
         textureRender.surfaceCreated()

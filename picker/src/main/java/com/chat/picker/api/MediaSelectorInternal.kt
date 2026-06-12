@@ -17,6 +17,7 @@ import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.compress.MediaCodecVideoCompressor
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.IImageEngine
 import com.chat.picker.model.MediaEntity
@@ -134,7 +135,7 @@ internal object MediaSelectorInternal {
             cfg.cameraRecordDurationMs,
             cfg.cameraRecordCountDown,
             cfg.cameraRecordTrigger,
-        ) { ok, path, uri ->
+        ) { ok, path, uri, mirrorHorizontal ->
             if (!ok || path == null || uri == null) {
                 clearRuntimeState()
                 listener.onResult(emptyList())
@@ -142,7 +143,7 @@ internal object MediaSelectorInternal {
             }
 
             invalidateCache()
-            val item = CameraHelper.makeVideoEntity(path, uri)
+            val item = CameraHelper.makeVideoEntity(path, uri, mirrorHorizontal)
             deliverCameraResult(activity, listOf(item), listener)
         }
     }
@@ -229,7 +230,7 @@ internal object MediaSelectorInternal {
         }
 
         val imageC = activeImageCompressor ?: globalImageCompressor
-        val videoC = activeVideoCompressor ?: globalVideoCompressor
+        val videoC = activeVideoCompressor ?: globalVideoCompressor ?: defaultVideoFixerFor(list)
         val item = list.first()
         val needsImageCompress = item.isImage && imageC != null && imageC.needsCompress(item)
         val needsVideoCompress = item.isVideo && videoC != null && videoC.needsCompress(item)
@@ -341,6 +342,13 @@ internal object MediaSelectorInternal {
             }
         }
     }
+
+    private fun defaultVideoFixerFor(list: List<MediaEntity>): IVideoCompressor? =
+        if (list.any { it.isVideo && it.mirrorHorizontal }) {
+            MediaCodecVideoCompressor()
+        } else {
+            null
+        }
 
     private fun clearRuntimeState() {
         pendingListener = null

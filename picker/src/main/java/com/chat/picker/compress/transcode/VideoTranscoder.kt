@@ -23,6 +23,7 @@ internal class VideoTranscoder(
         context: Context,
         input: Uri,
         outFile: File,
+        mirrorHorizontal: Boolean = false,
         onProgress: (Int) -> Unit = {},
     ): Result? {
         var videoExtractor: MediaExtractor? = null
@@ -55,7 +56,11 @@ internal class VideoTranscoder(
                 0L
             }
             val (outW, outH) = targetSize(displayW, displayH)
-            if (outW >= displayW && outH >= displayH && srcLikelyLowBitrate(srcFormat)) {
+            if (!mirrorHorizontal &&
+                outW >= displayW &&
+                outH >= displayH &&
+                srcLikelyLowBitrate(srcFormat)
+            ) {
                 PickerLog.d("transcode: source already small, skip")
                 return null
             }
@@ -78,7 +83,7 @@ internal class VideoTranscoder(
             inputSurface.makeCurrent()
             encoder.start()
 
-            outputSurface = OutputSurface()
+            outputSurface = OutputSurface(mirrorHorizontal)
             decoder = MediaCodec.createDecoderByType(srcFormat.getString(MediaFormat.KEY_MIME)!!)
             decoder.configure(srcFormat, outputSurface.surface, null, 0)
             decoder.start()

@@ -80,6 +80,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private lateinit var modeLabel: TextView
     private lateinit var flashButton: TextView
     private lateinit var torchButton: TextView
+    private lateinit var switchButton: TextView
     private lateinit var captureButton: TextView
     private lateinit var captureDrawable: CaptureButtonDrawable
     private lateinit var actionPanel: View
@@ -99,6 +100,9 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private var recordTrigger: CameraRecordTrigger = CameraRecordTrigger.CLICK
     private var flashAuto: Boolean = false
     private var torchOn: Boolean = false
+    private var lensFacing: Int = CameraSelector.LENS_FACING_BACK
+    private var hasBackCamera: Boolean = false
+    private var hasFrontCamera: Boolean = false
     private var recordingStartedAt: Long = 0L
     private var accumulatedMs: Long = 0L
     private var isRecording = false
@@ -112,6 +116,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     private var previewThumb: Bitmap? = null
     private var previewPhoto: Bitmap? = null
     private var previewLoadGeneration = 0
+    private var recordingLensFacing: Int = CameraSelector.LENS_FACING_BACK
+    private var resultVideoNeedsMirror = false
 
     private var orientationListener: OrientationEventListener? = null
     private var deviceRotation: Int = Surface.ROTATION_0
@@ -174,6 +180,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         modeLabel = findViewById(R.id.camera_mode_label)
         flashButton = findViewById(R.id.camera_flash_auto)
         torchButton = findViewById(R.id.camera_torch)
+        switchButton = findViewById(R.id.camera_switch)
         captureButton = findViewById(R.id.camera_capture)
         captureDrawable = CaptureButtonDrawable(this)
         captureButton.background = captureDrawable
@@ -195,6 +202,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             camera?.cameraControl?.enableTorch(torchOn)
             updateFlashUi()
         }
+        switchButton.setOnClickListener { switchCamera() }
         captureButton.setOnClickListener {
             if (mode == CameraCaptureMode.PHOTO) {
                 takePhoto()
@@ -308,11 +316,23 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         providerFuture.addListener({
             runCatching {
                 val provider = providerFuture.get()
+                hasBackCamera = provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)
+                hasFrontCamera = provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)
+                if (!provider.hasCamera(cameraSelectorFor(lensFacing))) {
+                    lensFacing = when {
+                        hasBackCamera -> CameraSelector.LENS_FACING_BACK
+                        hasFrontCamera -> CameraSelector.LENS_FACING_FRONT
+                        else -> throw IllegalStateException("No available camera")
+                    }
+                }
                 val preview = Preview.Builder().build().also {
                     it.setSurfaceProvider(previewView.surfaceProvider)
                 }
+                camera?.cameraInfo?.torchState?.removeObservers(this)
                 provider.unbindAll()
-                val selector = cameraSelector(provider)
+                val selector = cameraSelectorFor(lensFacing)
+                flashAuto = false
+                torchOn = false
                 if (mode == CameraCaptureMode.PHOTO) {
                     val image = ImageCapture.Builder()
                         .setFlashMode(ImageCapture.FLASH_MODE_OFF)
@@ -348,6 +368,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                     )
                 }
                 observeTorch()
+                updateFlashUi()
             }.onFailure {
                 Toast.makeText(this, R.string.picker_camera_error, Toast.LENGTH_SHORT).show()
                 finish()
@@ -355,14 +376,20 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun cameraSelector(provider: ProcessCameraProvider): CameraSelector {
-        return when {
-            provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ->
-                CameraSelector.DEFAULT_BACK_CAMERA
-            provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ->
-                CameraSelector.DEFAULT_FRONT_CAMERA
-            else -> throw IllegalStateException("No available camera")
+    private fun cameraSelectorFor(lensFacing: Int): CameraSelector =
+        CameraSelector.Builder()
+            .requireLensFacing(lensFacing)
+            .build()
+
+    private fun switchCamera() {
+        if (isRecording || activeRecording != null || hasResult) return
+        if (!hasBackCamera || !hasFrontCamera) return
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+            CameraSelector.LENS_FACING_FRONT
+        } else {
+            CameraSelector.LENS_FACING_BACK
         }
+        startCamera()
     }
 
     private fun observeTorch() {
@@ -421,7 +448,11 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         torchButton.text = getString(
             if (torchOn) R.string.picker_camera_torch_on else R.string.picker_camera_torch_off,
         )
-        flashButton.visibility = if (mode == CameraCaptureMode.PHOTO) View.VISIBLE else View.GONE
+        val canSwitch = hasBackCamera && hasFrontCamera && !hasResult && !isRecording && activeRecording == null
+        flashButton.visibility = if (mode == CameraCaptureMode.PHOTO && !hasResult) View.VISIBLE else View.GONE
+        torchButton.visibility = if (!hasResult) View.VISIBLE else View.GONE
+        switchButton.visibility = if (canSwitch) View.VISIBLE else View.GONE
+        switchButton.isEnabled = canSwitch
     }
 
     private fun takePhoto() {
@@ -435,7 +466,10 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             cameraExecutor,
             object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                    bakeExifOrientation(file)
+                    bakeExifOrientation(
+                        file,
+                        mirrorHorizontal = lensFacing == CameraSelector.LENS_FACING_FRONT,
+                    )
                     runOnUiThread {
                         hasResult = file.exists() && file.length() > 0L
                         if (hasResult) showPhotoPreview(file)
@@ -466,7 +500,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         }
     }
 
-    private fun bakeExifOrientation(file: File) {
+    private fun bakeExifOrientation(file: File, mirrorHorizontal: Boolean) {
         if (!file.exists() || file.length() <= 0L) return
         runCatching {
             val orientation = ExifInterface(file.absolutePath).getAttributeInt(
@@ -488,7 +522,13 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                     matrix.postRotate(270f)
                     matrix.postScale(-1f, 1f)
                 }
-                else -> return@runCatching
+                else -> Unit
+            }
+            if (mirrorHorizontal) {
+                matrix.postScale(-1f, 1f)
+            }
+            if (orientation == ExifInterface.ORIENTATION_NORMAL && !mirrorHorizontal) {
+                return@runCatching
             }
             val opts = BitmapFactory.Options().apply {
                 inJustDecodeBounds = true
@@ -538,6 +578,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         val file = File(filePath)
         file.parentFile?.mkdirs()
         runCatching { file.delete() }
+        recordingLensFacing = lensFacing
         val output = FileOutputOptions.Builder(file).build()
         val recording = capture.output.prepareRecording(this, output)
         pendingRecording = if (recordAudio) recording.withAudioEnabled() else recording
@@ -552,13 +593,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                     if (!isFinishing && !isDestroyed) resetUiAfterDelete()
                     return@recordListener
                 }
-                if (finishAfterFinalize && ok) {
-                    finishAfterFinalize = false
-                    finishWithSuccess()
-                } else {
-                    showVideoPreview(file)
-                    showResultButtons(ok)
-                }
+                showFinalizedVideo(file)
             }
         }
         recordingStartedAt = SystemClock.elapsedRealtime()
@@ -566,10 +601,12 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         isRecording = true
         finishAfterFinalize = false
         deleteAfterFinalize = false
+        resultVideoNeedsMirror = recordingLensFacing == CameraSelector.LENS_FACING_FRONT
         captureButton.visibility = View.VISIBLE
         captureButton.isEnabled = true
         captureDrawable.setMode(CaptureButtonDrawable.Mode.VIDEO_RECORDING, animate = true)
         actionPanel.visibility = View.GONE
+        updateFlashUi()
         updateTimer()
     }
 
@@ -582,6 +619,17 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         activeRecording?.stop()
         activeRecording = null
         pendingRecording = null
+        updateFlashUi()
+    }
+
+    private fun showFinalizedVideo(file: File) {
+        if (finishAfterFinalize) {
+            finishAfterFinalize = false
+            finishWithSuccess()
+        } else {
+            showVideoPreview(file)
+            showResultButtons(hasResult)
+        }
     }
 
     private fun showResultButtons(ok: Boolean) {
@@ -622,6 +670,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         modeLabel.visibility = View.GONE
         flashButton.visibility = View.GONE
         torchButton.visibility = View.GONE
+        switchButton.visibility = View.GONE
         timer.visibility = View.INVISIBLE
         loadPhotoPreviewAsync(file, generation)
     }
@@ -636,6 +685,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         resultVideoThumb.visibility = View.GONE
         resultVideoBg.visibility = View.VISIBLE
         resultVideo.visibility = View.VISIBLE
+        applyVideoMirrorForCurrentResult()
         previewVideoFile = file
         resultVideo.post {
             if (isPreviewLoadActive(generation) && previewVideoFile?.absolutePath == file.absolutePath) {
@@ -652,6 +702,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         modeLabel.visibility = View.GONE
         flashButton.visibility = View.GONE
         torchButton.visibility = View.GONE
+        switchButton.visibility = View.GONE
         timer.visibility = View.INVISIBLE
         loadVideoThumbAsync(file, generation)
     }
@@ -664,6 +715,8 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         resultVideoBg.visibility = View.GONE
         resultVideo.visibility = View.GONE
         resultVideoThumb.visibility = View.GONE
+        resultVideo.scaleX = 1f
+        resultVideoThumb.scaleX = 1f
         actionPanel.alpha = 1f
         actionPanel.translationY = 0f
         videoPlayToggle.alpha = 1f
@@ -882,6 +935,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
                     if (thumb != null) {
                         previewThumb = thumb
                         resultVideoThumb.setImageBitmap(thumb)
+                        applyVideoMirrorForCurrentResult()
                         resultVideoThumb.visibility = View.VISIBLE
                     } else {
                         resultVideoThumb.setImageDrawable(null)
@@ -919,6 +973,12 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         }.getOrNull()
     }
 
+    private fun applyVideoMirrorForCurrentResult() {
+        val scale = if (resultVideoNeedsMirror) -1f else 1f
+        resultVideo.scaleX = scale
+        resultVideoThumb.scaleX = scale
+    }
+
     private fun resetCapture() {
         if (isRecording || activeRecording != null) {
             deleteAfterFinalize = true
@@ -930,8 +990,9 @@ internal class CameraCaptureActivity : AppCompatActivity() {
     }
 
     private fun resetUiAfterDelete() {
-        clearResultPreview()
         hasResult = false
+        resultVideoNeedsMirror = false
+        clearResultPreview()
         accumulatedMs = 0L
         captureButton.isEnabled = true
         captureButton.visibility = View.VISIBLE
@@ -944,6 +1005,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             animate = false,
         )
         actionPanel.visibility = View.GONE
+        updateFlashUi()
         updateTimer()
     }
 
@@ -978,9 +1040,16 @@ internal class CameraCaptureActivity : AppCompatActivity() {
 
     private fun finishWithSuccess() {
         if (!hasResult) return
-        setResult(RESULT_OK)
+        setResult(
+            RESULT_OK,
+            Intent().putExtra(EXTRA_MIRROR_HORIZONTAL, shouldMirrorResultVideo()),
+        )
         finish()
     }
+
+    private fun shouldMirrorResultVideo(): Boolean =
+        mode == CameraCaptureMode.VIDEO &&
+            resultVideoNeedsMirror
 
     private fun cancelAndFinish() {
         invalidatePreviewLoads()
@@ -1141,6 +1210,7 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         private const val EXTRA_MAX_DURATION_MS = "picker.camera.max_duration_ms"
         private const val EXTRA_COUNT_DOWN = "picker.camera.count_down"
         private const val EXTRA_RECORD_TRIGGER = "picker.camera.record_trigger"
+        const val EXTRA_MIRROR_HORIZONTAL = "picker.camera.mirror_horizontal"
 
         fun createIntent(
             context: Context,
