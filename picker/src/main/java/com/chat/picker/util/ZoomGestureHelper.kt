@@ -100,8 +100,7 @@ class ZoomGestureHelper private constructor(
 
         if (targetView is ImageView) {
 
-            targetView.scaleType =
-                ImageView.ScaleType.MATRIX
+            ensureImageMatrixScaleType()
         }
 
         targetView.setOnTouchListener(this)
@@ -129,6 +128,8 @@ class ZoomGestureHelper private constructor(
             baseMatrixComputed = true
             return true
         }
+
+        ensureImageMatrixScaleType()
 
         val drawable = targetView.drawable ?: return false
 
@@ -159,6 +160,15 @@ class ZoomGestureHelper private constructor(
 
         baseMatrixComputed = true
         return true
+    }
+
+    private fun ensureImageMatrixScaleType() {
+        if (targetView is ImageView &&
+            targetView.scaleType != ImageView.ScaleType.MATRIX
+        ) {
+            targetView.scaleType = ImageView.ScaleType.MATRIX
+            baseMatrixComputed = false
+        }
     }
 
     private fun warmUpMatrix() {
