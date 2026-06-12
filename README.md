@@ -206,6 +206,39 @@ PickIt.with(this)
     }
 ```
 
+### 前置摄像头录像镜像
+
+部分设备的前置摄像头录像文件会带镜像效果。框架在内置相机录制前置摄像头视频时，不会默认进入压缩或转码流程，只会在返回的 `MediaEntity.mirrorHorizontal` 中标记该视频是否需要水平翻转。
+
+链式录像入口会把该标记返回给业务方：
+
+```kotlin
+PickIt.with(this)
+    .takeVideo()
+    .start { result ->
+        val video = result.firstOrNull()
+        if (video?.mirrorHorizontal == true) {
+            // 该视频来自前置摄像头，原始文件可能是镜像视频
+            // 是否压缩/转码修正由业务方自行决定
+        }
+    }
+```
+
+如需让框架在返回最终结果前修正镜像，需要由业务方显式启用内置视频压缩：
+
+```kotlin
+PickIt.with(this)
+    .takeVideo()
+    .smartVideoCompress()
+    .start { result ->
+        // 前置摄像头视频会在转码/压缩时修正镜像
+    }
+```
+
+如果使用自定义 `IVideoCompressor`，需要判断 `item.mirrorHorizontal`。当该值为 `true` 时，压缩器应在转码绘制阶段做水平翻转，并在输出结果中把 `mirrorHorizontal` 置为 `false`，避免后续重复翻转。
+
+独立录像入口 `PickIt.takeVideo(activity, ...)` 只直接返回原始 `filePath/uri`，不经过 `MediaEntity` 结果链路，因此不会携带 `mirrorHorizontal` 标记，也不会自动修正前置摄像头镜像。需要感知前置摄像头镜像状态时，使用 `PickIt.with(this).takeVideo().start { ... }` 链式入口。
+
 ### 限时录视频
 
 ```kotlin

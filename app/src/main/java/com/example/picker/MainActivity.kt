@@ -298,6 +298,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<Button>(R.id.btn_take_video_chain).setOnClickListener {
+            PickIt.with(this)
+                .takeVideo()
+                .clickRecord()
+                .start { render(it) }
+        }
+
         findViewById<Button>(R.id.btn_take_video_compress).setOnClickListener {
             PickIt.with(this)
                 .takeVideo()
@@ -354,6 +361,9 @@ class MainActivity : AppCompatActivity() {
             list.forEachIndexed { i, e ->
                 append("${i + 1}. [${e.mediaType}] ${e.displayName}  ${e.mimeType}\n")
                 append("   size=${formatSize(e.sizeBytes)}  ${e.width}x${e.height}\n")
+                if (e.isVideo && e.mirrorHorizontal) {
+                    append("   front camera mirror: true\n")
+                }
                 e.filePath?.let { append("   path=$it\n") }
             }
         }

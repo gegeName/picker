@@ -192,6 +192,12 @@
             android:text="限时录视频（最长 10 秒，倒计时）" />
 
         <Button
+            android:id="@+id/btn_take_video_chain"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="链式录视频（返回 MediaEntity）" />
+
+        <Button
             android:id="@+id/btn_take_video_compress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
