@@ -371,7 +371,7 @@ internal object MediaSelectorInternal {
             val app = activity.applicationContext
             sysPickerPool.execute {
                 val list = uris.mapNotNull { systemUriToEntity(app, it, fallbackType) }
-                activity.runOnUiThread { listener.onResult(list) }
+                activity.runOnUiThread { deliverResultAndClear(list, listener) }
             }
         }
 
@@ -446,7 +446,7 @@ internal object MediaSelectorInternal {
             sysPickerPool.execute {
                 val limit = maxCount.coerceAtLeast(1)
                 val list = uris.take(limit).map { documentUriToEntity(app, it) }
-                activity.runOnUiThread { listener.onResult(list) }
+                activity.runOnUiThread { deliverResultAndClear(list, listener) }
             }
         }
 
@@ -517,6 +517,14 @@ internal object MediaSelectorInternal {
                 )
             }
         }.getOrNull()
+    }
+
+    private fun deliverResultAndClear(
+        list: List<MediaEntity>,
+        listener: OnPickResultListener,
+    ) {
+        clearRuntimeState()
+        listener.onResult(list)
     }
 
     private fun documentUriToEntity(ctx: Context, uri: Uri): MediaEntity {
