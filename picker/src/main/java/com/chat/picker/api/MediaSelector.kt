@@ -89,7 +89,11 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      */
     fun multiSelect(enable: Boolean) = apply { cfg.enableMultiSelect = enable }
 
-    /** 链式拍照入口；可继续调用 crop/cropOval，最终以选择结果形式返回。 */
+    /**
+     * 链式拍照入口；不进入媒体列表，直接打开内置相机拍照。
+     *
+     * 可继续调用 [crop]、[cropOval]、[smartCompress] 等处理方法，最终通过 [start] 返回单个图片结果。
+     */
     fun takePhoto() = apply {
         startWithCamera = true
         startWithVideoCamera = false
@@ -99,7 +103,12 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         cfg.enableMultiSelect = false
     }
 
-    /** 链式录视频入口；最终以选择结果形式返回录制的视频。 */
+    /**
+     * 链式录视频入口；不进入媒体列表，直接打开内置相机录像。
+     *
+     * 结果通过 [start] 返回单个视频 [MediaEntity]。前置摄像头录像如果需要镜像修正，
+     * 会通过 [MediaEntity.mirrorHorizontal] 标记交给业务方决定是否转码。
+     */
     fun takeVideo() = apply {
         startWithVideoCamera = true
         startWithCamera = false
@@ -109,30 +118,58 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         cfg.enableMultiSelect = false
     }
 
+    /**
+     * 设置相机入口的拍摄模式。
+     *
+     * 主要配合 [showCameraEntry] 使用：图片列表可强制相机入口拍照或录像。
+     * [takePhoto] 和 [takeVideo] 会自动设置对应模式，通常无需额外调用。
+     * @param mode 相机拍摄模式，支持拍照或录像。
+     */
     fun cameraMode(mode: CameraCaptureMode) = apply {
         cfg.cameraCaptureMode = mode
     }
 
+    /** 将相机入口设置为拍照模式，等同于 [cameraMode] 传入 [CameraCaptureMode.PHOTO]。 */
     fun photoMode() = cameraMode(CameraCaptureMode.PHOTO)
 
+    /** 将相机入口设置为录像模式，等同于 [cameraMode] 传入 [CameraCaptureMode.VIDEO]。 */
     fun videoMode() = cameraMode(CameraCaptureMode.VIDEO)
 
+    /**
+     * 设置内置相机录像最长时长。
+     *
+     * 仅对 [takeVideo] 或视频相机入口生效。传 0 表示不限制录制时长。
+     * @param durationMs 最大录制时长，单位毫秒；小于 0 时按 0 处理。
+     * @param countDown true 时录像计时显示为倒计时，false 时显示已录制时长。
+     */
     @JvmOverloads
     fun recordDurationMs(durationMs: Long, countDown: Boolean = false) = apply {
         cfg.cameraRecordDurationMs = durationMs.coerceAtLeast(0L)
         cfg.cameraRecordCountDown = countDown
     }
 
+    /**
+     * 设置录像计时显示方式。
+     *
+     * 只有设置了 [recordDurationMs] 的最大时长时，倒计时才有明显意义。
+     * @param enable true 显示剩余时间，false 显示已录制时间。
+     */
     fun recordCountDown(enable: Boolean) = apply {
         cfg.cameraRecordCountDown = enable
     }
 
+    /**
+     * 设置录像触发方式。
+     * @param trigger [CameraRecordTrigger.CLICK] 表示点击开始/停止；[CameraRecordTrigger.LONG_PRESS] 表示按住录制、松手停止。
+     */
     fun recordTrigger(trigger: CameraRecordTrigger) = apply {
         cfg.cameraRecordTrigger = trigger
     }
 
+    /** 设置为点击录制模式：点击开始录像，再次点击停止录像。 */
     fun clickRecord() = recordTrigger(CameraRecordTrigger.CLICK)
 
+    /** 设置为长按录制模式：按住开始录像，松手停止录像。 */
     fun longPressRecord() = recordTrigger(CameraRecordTrigger.LONG_PRESS)
 
     /**
@@ -160,6 +197,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     /**
      * 使用第三方图片裁剪实现。调用 crop() 后如果设置了该处理器，将不进入内置裁剪页。
      * 第三方处理完成后调用 callback.onSuccess(...)，结果仍会从 start { ... } 返回。
+     * @param processor 第三方裁剪处理器；传 null 时恢复内置裁剪流程。
      */
     fun imageCropProcessor(processor: IImageProcessProcessor?) = apply {
         cfg.imageCropProcessor = processor
@@ -168,6 +206,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     /**
      * 使用第三方图片编辑实现。调用 imageEdit() 后如果设置了该处理器，将不进入内置编辑页。
      * 第三方处理完成后调用 callback.onSuccess(...)，结果仍会从 start { ... } 返回。
+     * @param processor 第三方图片编辑处理器；传 null 时恢复内置图片编辑流程。
      */
     fun imageEditProcessor(processor: IImageProcessProcessor?) = apply {
         cfg.imageEditProcessor = processor
@@ -431,7 +470,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 
     companion object {
+        /** 内部 picker Activity 返回结果使用的 Intent key。 */
         const val EXTRA_RESULT = "picker_result"
+
+        /** 内部媒体列表单页查询数量。 */
         const val PAGE_SIZE = 50
 
         /**
@@ -482,6 +524,17 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             }
         }
 
+        /**
+         * 独立限时录视频入口：不进入 picker UI，直接打开内置相机录像。
+         *
+         * 该入口只返回原始路径/Uri，不返回 [MediaEntity.mirrorHorizontal]。如果业务需要感知前置摄像头
+         * 镜像标记，请使用 [with] + [takeVideo] 链式入口。
+         * @param activity 用于启动内置相机的宿主 Activity。
+         * @param maxDurationMs 最大录制时长，单位毫秒；0 表示不限制。
+         * @param countDown true 时显示倒计时，false 时显示已录制时长。
+         * @param trigger 录像触发方式，支持点击录制和长按录制。
+         * @param listener onResult(success, filePath, uri)
+         */
         @JvmStatic
         @JvmOverloads
         fun takeVideo(
@@ -507,6 +560,16 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             takeVideo(fragment.requireActivity(), listener)
         }
 
+        /**
+         * Fragment 版独立限时录视频入口；行为同 Activity 版本。
+         *
+         * 该入口只返回原始路径/Uri，不返回 [MediaEntity.mirrorHorizontal]。
+         * @param fragment 用于获取宿主 Activity 并启动内置相机的 Fragment。
+         * @param maxDurationMs 最大录制时长，单位毫秒；0 表示不限制。
+         * @param countDown true 时显示倒计时，false 时显示已录制时长。
+         * @param trigger 录像触发方式，支持点击录制和长按录制。
+         * @param listener onResult(success, filePath, uri)
+         */
         @JvmStatic
         @JvmOverloads
         fun takeVideo(
@@ -737,4 +800,5 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     }
 }
 
+/** [MediaSelector] 的简短别名，便于写成 `PickIt.with(this)`。 */
 typealias PickIt = MediaSelector
