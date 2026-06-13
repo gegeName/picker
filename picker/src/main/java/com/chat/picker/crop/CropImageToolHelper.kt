@@ -873,9 +873,9 @@ internal class CropImageToolHelper(
 
         override fun onSelected() {
             cropVisible = false
-            if (selectedTextIndex !in texts.indices && texts.isNotEmpty()) {
-                selectedTextIndex = texts.lastIndex
-            }
+            selectedTextIndex = -1
+            lastTapTime = 0L
+            lastTapIndex = -1
         }
 
         override fun onReset() {
