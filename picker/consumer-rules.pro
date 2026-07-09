@@ -1,41 +1,73 @@
-# picker 模块 consumer ProGuard 规则
-# 原则：只为"混淆后会真正出问题"的点写规则，不做大规模 keep。
+# Picker consumer ProGuard/R8 rules
 #
-# AGP/AndroidX 默认规则已覆盖：
-#   - Parcelable.CREATOR 字段
-#   - Activity / Service / Receiver / Provider（manifest 注册的类）
-#   - androidx.appcompat / recyclerview / viewpager2 / lifecycle / fragment
-# 所以 MediaPickerActivity / MediaPreviewActivity / FileProvider / MediaEntity 不需要重复 keep。
+# Goal:
+# - Keep the public API that host apps call directly.
+# - Keep callback/extension interfaces implemented by host apps.
+# - Keep Parcelable and enum members that are passed through Intent/Bundle.
+# - Do NOT keep internal UI, repository, camera, compression, or rendering classes.
 #
-# 真正需要保留的有：
-#   1. 公开 API 的 fun interface SAM 实现 —— Java 调用方传 lambda 时可能依赖具体方法名
-#   2. 业务方注入的扩展接口实现类 —— R8 看不到具体子类，签名 / 方法不能被改名
-#   3. 反射 / 字符串引用（如 ZoomGestureHelper 被外部按 public API 调用）
+# Android Gradle Plugin already keeps manifest components and Parcelable CREATOR
+# in most cases. The rules below are intentionally narrow and avoid a package-wide
+# `-keep class com.chat.picker.** { *; }`.
 
-# ─── 公开扩展接口：业务方会实现，不能改方法签名 ─────────────────────────
--keep interface com.chat.picker.loader.IImageEngine { *; }
--keep interface com.chat.picker.preview.IOtherPreviewProvider { *; }
--keep interface com.chat.picker.compress.IImageCompressor { *; }
--keep interface com.chat.picker.compress.IVideoCompressor { *; }
+# Keep useful generic signatures for public callbacks and extension APIs.
+-keepattributes Signature,InnerClasses,EnclosingMethod
 
-# ─── 公开链式入口：业务方调链式 API + Java 调用 @JvmStatic 工厂 ─────────
--keep class com.chat.picker.api.MediaSelector { public *; }
--keep class com.chat.picker.api.MediaSelector$Companion { public *; }
+# ─── Public chain API ────────────────────────────────────────────────────────
+# Host apps call these APIs from Java/Kotlin. Keep names stable, but allow R8 to
+# remove unused members and optimize implementations.
+-keep,allowshrinking,allowoptimization class com.chat.picker.api.MediaSelector { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.api.MediaSelector$Companion { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.api.ImageProcessStore { public *; }
 
-# ─── SAM fun interface：Java/Kotlin 互调时方法名要稳定 ──────────────────
--keep interface com.chat.picker.api.OnPickResultListener { *; }
--keep interface com.chat.picker.api.OnPhotoTakenListener { *; }
--keep class com.chat.picker.upload.MediaUploader$Cancellable { *; }
--keep class com.chat.picker.upload.MediaUploader { public *; }
+# Public configuration/result model types used by callers.
+-keep,allowshrinking,allowoptimization class com.chat.picker.model.MediaEntity { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.model.MediaFilter { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.model.MediaFilter$Builder { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.api.CropConfig { public *; }
 
-# ─── ZoomGestureHelper 被外部按 attach() 入口直接调用 ───────────────────
--keep public class com.chat.picker.util.ZoomGestureHelper { public protected *; }
--keep class com.chat.picker.util.ZoomGestureHelper$Config { *; }
+# Public enums are often persisted by name or referenced from Java/XML samples.
+-keep,allowshrinking,allowoptimization enum com.chat.picker.model.MediaType { public *; }
+-keep,allowshrinking,allowoptimization enum com.chat.picker.api.CropOutputFormat { public *; }
+-keep,allowshrinking,allowoptimization enum com.chat.picker.api.CropShape { public *; }
+-keep,allowshrinking,allowoptimization enum com.chat.picker.api.CameraCaptureMode { public *; }
+-keep,allowshrinking,allowoptimization enum com.chat.picker.api.CameraRecordTrigger { public *; }
 
-# ─── MediaEntity 走 Parcel 跨 Activity / 进程，字段反射读写 ──────────
-# AGP 默认会保留 CREATOR，但保险起见明确字段保留以防外部 ContentProvider 反射
--keepclassmembers class com.chat.picker.model.MediaEntity {
-    public <fields>;
-    public *** get*();
-    public *** is*();
+# ─── Callback and extension interfaces ───────────────────────────────────────
+# These are implemented by the host app. Method names/signatures must stay stable
+# for Java callers, lambdas, and third-party integration code.
+-keep,allowshrinking,allowoptimization interface com.chat.picker.api.OnPickResultListener { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.api.OnPhotoTakenListener { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.api.OnVideoRecordedListener { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.api.IImageProcessProcessor { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.api.ImageProcessCallback { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.loader.IImageEngine { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.preview.IOtherPreviewProvider { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.compress.IImageCompressor { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.compress.IVideoCompressor { *; }
+
+# Compression callback is passed to custom compressors.
+-keep,allowshrinking,allowoptimization class com.chat.picker.compress.CompressCallback { public *; }
+
+# Built-in compressor classes are public constructors used by apps that want to
+# configure them directly. Keep their public surface only.
+-keep,allowshrinking,allowoptimization class com.chat.picker.compress.SmartImageCompressor { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.compress.MediaCodecVideoCompressor { public *; }
+
+# ─── Upload helper public API ────────────────────────────────────────────────
+-keep,allowshrinking,allowoptimization class com.chat.picker.upload.MediaUploader { public *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.upload.MediaUploader$Listener { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.upload.MediaUploader$BatchListener { *; }
+-keep,allowshrinking,allowoptimization interface com.chat.picker.upload.MediaUploader$Cancellable { *; }
+
+# ─── Zoom helper public API ──────────────────────────────────────────────────
+# Apps can call ZoomGestureHelper.attach(...) directly for custom preview views.
+-keep,allowshrinking,allowoptimization class com.chat.picker.util.ZoomGestureHelper { public protected *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.util.ZoomGestureHelper$Companion { public *; }
+-keep,allowshrinking,allowoptimization class com.chat.picker.util.ZoomGestureHelper$Config { public *; }
+
+# ─── Parcelable safety ───────────────────────────────────────────────────────
+# Keep CREATOR fields and public members for models passed through Intent/Bundle.
+-keepclassmembers,allowoptimization class * implements android.os.Parcelable {
+    public static final android.os.Parcelable$Creator CREATOR;
 }

@@ -30,6 +30,7 @@ import com.chat.picker.ui.PermissionHelper
 import com.chat.picker.util.StorageAccess
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 
 internal object MediaSelectorInternal {
 
@@ -368,10 +369,16 @@ internal object MediaSelectorInternal {
         val fallbackType = cfg.filter.type
 
         fun dispatchResult(uris: List<Uri>) {
+            if (uris.isEmpty()) {
+                clearRuntimeState()
+                return
+            }
             val app = activity.applicationContext
             sysPickerPool.execute {
-                val list = uris.mapNotNull { systemUriToEntity(app, it, fallbackType) }
-                activity.runOnUiThread { deliverResultAndClear(list, listener) }
+                val list = uris.map { uri ->
+                    systemUriToEntity(app, uri, fallbackType) ?: documentUriToEntity(app, uri)
+                }
+                activity.runOnUiThread { deliverPickedResult(activity, list, listener) }
             }
         }
 
@@ -434,6 +441,10 @@ internal object MediaSelectorInternal {
         val types = mimeTypes.takeIf { it.isNotEmpty() } ?: arrayOf("*/*")
 
         fun dispatchResult(uris: List<Uri>) {
+            if (uris.isEmpty()) {
+                clearRuntimeState()
+                return
+            }
             val app = activity.applicationContext
             uris.forEach { uri ->
                 runCatching {
@@ -446,7 +457,7 @@ internal object MediaSelectorInternal {
             sysPickerPool.execute {
                 val limit = maxCount.coerceAtLeast(1)
                 val list = uris.take(limit).map { documentUriToEntity(app, it) }
-                activity.runOnUiThread { deliverResultAndClear(list, listener) }
+                activity.runOnUiThread { deliverPickedResult(activity, list, listener) }
             }
         }
 
@@ -525,6 +536,105 @@ internal object MediaSelectorInternal {
     ) {
         clearRuntimeState()
         listener.onResult(list)
+    }
+
+    private fun deliverPickedResult(
+        activity: ComponentActivity,
+        list: List<MediaEntity>,
+        listener: OnPickResultListener,
+    ) {
+        if (list.isEmpty()) {
+            deliverResultAndClear(list, listener)
+            return
+        }
+
+        val imageC = activeImageCompressor ?: globalImageCompressor
+        val videoC = activeVideoCompressor ?: globalVideoCompressor
+        val needCompress = list.any { item ->
+            (item.isImage && imageC != null && imageC.needsCompress(item)) ||
+                (item.isVideo && videoC != null && videoC.needsCompress(item))
+        }
+        if (!needCompress) {
+            deliverResultAndClear(list, listener)
+            return
+        }
+
+        var loadingDialog: LoadingDialog? = null
+
+        fun showLoading(done: Int, total: Int) {
+            activity.runOnUiThread {
+                if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                val dialog = loadingDialog ?: LoadingDialog(activity).also {
+                    loadingDialog = it
+                    it.setBackCancelEnabled(enable = false)
+                }
+                dialog.setText(activity.getString(R.string.picker_compress_progress, done, total))
+                if (!dialog.isShowing) dialog.show()
+            }
+        }
+
+        fun dismissLoading() {
+            val block = {
+                loadingDialog?.takeIf { it.isShowing }?.dismiss()
+                loadingDialog = null
+            }
+            if (Looper.myLooper() == Looper.getMainLooper()) block()
+            else activity.runOnUiThread(block)
+        }
+
+        val total = list.size
+        val results = arrayOfNulls<MediaEntity>(total)
+        val done = AtomicInteger()
+        val parallel = (Runtime.getRuntime().availableProcessors() / 2)
+            .coerceIn(1, 4)
+            .coerceAtMost(total)
+        val pool = Executors.newFixedThreadPool(parallel)
+
+        fun finishOne(index: Int, result: MediaEntity) {
+            results[index] = result
+            val count = done.incrementAndGet()
+            if (count < total) {
+                showLoading(count, total)
+                return
+            }
+            pool.shutdown()
+            activity.runOnUiThread {
+                dismissLoading()
+                deliverResultAndClear(
+                    results.mapIndexed { i, item -> item ?: list[i] },
+                    listener,
+                )
+            }
+        }
+
+        showLoading(0, total)
+        list.forEachIndexed { index, item ->
+            val imageNeedsCompress = item.isImage && imageC != null && imageC.needsCompress(item)
+            val videoNeedsCompress = item.isVideo && videoC != null && videoC.needsCompress(item)
+            if (!imageNeedsCompress && !videoNeedsCompress) {
+                finishOne(index, item)
+                return@forEachIndexed
+            }
+            pool.execute {
+                val callback = CompressCallback(
+                    originalItem = item,
+                    delivery = { result -> finishOne(index, result) },
+                )
+                try {
+                    when {
+                        imageNeedsCompress && imageC != null ->
+                            imageC.compress(activity.applicationContext, item, callback)
+
+                        videoNeedsCompress && videoC != null ->
+                            videoC.compress(activity.applicationContext, item, callback)
+
+                        else -> callback.onSuccess(item)
+                    }
+                } catch (error: Throwable) {
+                    callback.onError(error)
+                }
+            }
+        }
     }
 
     private fun documentUriToEntity(ctx: Context, uri: Uri): MediaEntity {

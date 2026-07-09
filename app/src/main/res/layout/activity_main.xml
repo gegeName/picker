@@ -87,6 +87,12 @@
             android:text="系统 Photo Picker（API 33+，最多 5 张）" />
 
         <Button
+            android:id="@+id/btn_pick_system_photo_compress"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="系统 Photo Picker + 链式压缩（修复验证）" />
+
+        <Button
             android:id="@+id/btn_pick_document"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

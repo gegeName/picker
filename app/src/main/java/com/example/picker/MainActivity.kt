@@ -115,6 +115,22 @@ class MainActivity : AppCompatActivity() {
                 .start { render(it) }
         }
 
+        findViewById<Button>(R.id.btn_pick_system_photo_compress).setOnClickListener {
+            PickIt.with(this)
+                .type(MediaType.IMAGE)
+                .maxCount(5)
+                .useSystemPhotoPicker(true)
+                .smartCompress(
+                    ignoreByKb = 100,
+                    quality = 85,
+                    minQuality = 75,
+                    maxWidth = 1080,
+                    maxHeight = 1920,
+                    minLongSide = 720,
+                )
+                .start { render(it) }
+        }
+
         findViewById<Button>(R.id.btn_pick_document).setOnClickListener {
             PickIt.pickFiles(
                 activity = this,
