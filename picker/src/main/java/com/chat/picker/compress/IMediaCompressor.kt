@@ -33,7 +33,7 @@ class CompressCallback internal constructor(
     fun onSuccess(item: MediaEntity) {
         if (consumed.compareAndSet(false, true)) {
             progressDelivery?.invoke(100)
-            delivery(item)
+            delivery(item.withOriginalFilePath())
         }
     }
 
@@ -56,7 +56,20 @@ class CompressCallback internal constructor(
                     )
                 }
             }
-            delivery(originalItem)
+            delivery(originalItem.withOriginalFilePath())
+        }
+    }
+
+    private fun MediaEntity.withOriginalFilePath(): MediaEntity {
+        val originalPath = originalFilePath ?: originalItem.originalFilePath ?: originalItem.filePath
+        val sourceUri = originalUri ?: originalItem.originalUri ?: originalItem.uri
+        return if (originalFilePath == originalPath && originalUri == sourceUri) {
+            this
+        } else {
+            copy(
+                originalFilePath = originalPath,
+                originalUri = sourceUri,
+            )
         }
     }
 }

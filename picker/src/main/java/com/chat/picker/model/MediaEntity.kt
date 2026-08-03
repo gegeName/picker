@@ -22,6 +22,19 @@ data class MediaEntity(
     /** 音频专辑 id（仅 AUDIO 有值），用于拼 albumart uri 加载封面 */
     val albumId: Long = 0L,
     val mirrorHorizontal: Boolean = false,
+    /**
+     * 原始文件路径。
+     *
+     * 图片裁剪 / 压缩后 [filePath] 会变成处理后的文件路径，此字段保留处理前原图路径。
+     * 如果原始资源来自系统 Photo Picker、SAF 等 content uri，且无法解析真实路径，则可能为 null。
+     */
+    val originalFilePath: String? = null,
+    /**
+     * 原始文件 Uri。
+     *
+     * 图片裁剪 / 压缩后 [uri] 会变成处理后的文件 Uri，此字段保留处理前源文件 Uri。
+     */
+    val originalUri: Uri? = null,
 ) : Parcelable {
 
     val isImage: Boolean get() = mimeType.startsWith("image/")
@@ -48,6 +61,12 @@ data class MediaEntity(
         MediaType.values()[parcel.readInt()],
         parcel.readLong(),
         if (parcel.dataAvail() > 0) parcel.readByte() != 0.toByte() else false,
+        if (parcel.dataAvail() > 0) parcel.readString() else null,
+        if (parcel.dataAvail() > 0) {
+            parcel.readString()?.takeIf { it.isNotEmpty() }?.let { Uri.parse(it) }
+        } else {
+            null
+        },
     )
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
@@ -64,6 +83,8 @@ data class MediaEntity(
         dest.writeInt(mediaType.ordinal)
         dest.writeLong(albumId)
         dest.writeByte(if (mirrorHorizontal) 1 else 0)
+        dest.writeString(originalFilePath)
+        dest.writeString(originalUri?.toString())
     }
 
     override fun describeContents(): Int = 0

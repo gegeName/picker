@@ -172,7 +172,11 @@ internal object MediaSelectorInternal {
                                     clearRuntimeState()
                                     listener.onResult(emptyList())
                                 } else {
-                                    deliverCameraResult(activity, result, listener)
+                                    deliverCameraResult(
+                                        activity,
+                                        preserveOriginalFilePaths(result, listOf(item)),
+                                        listener,
+                                    )
                                 }
                             }
                         }
@@ -207,7 +211,7 @@ internal object MediaSelectorInternal {
                 @Suppress("DEPRECATION")
                 result.data?.getParcelableExtra<MediaEntity>(
                     CropImageActivity.EXTRA_RESULT
-                )?.let { listOf(it) } ?: emptyList()
+                )?.let { preserveOriginalFilePaths(listOf(it), listOf(item)) } ?: emptyList()
             } else {
                 emptyList()
             }
@@ -311,6 +315,26 @@ internal object MediaSelectorInternal {
         } catch (e: Throwable) {
             pool.shutdownNow()
             callback.onError(e)
+        }
+    }
+
+    private fun preserveOriginalFilePaths(
+        result: List<MediaEntity>,
+        sources: List<MediaEntity>,
+    ): List<MediaEntity> {
+        if (result.isEmpty() || sources.isEmpty()) return result
+        return result.mapIndexed { index, item ->
+            val source = sources.getOrNull(index) ?: sources.singleOrNull()
+            val originalPath = item.originalFilePath ?: source?.originalFilePath ?: source?.filePath
+            val originalUri = item.originalUri ?: source?.originalUri ?: source?.uri
+            if (item.originalFilePath == originalPath && item.originalUri == originalUri) {
+                item
+            } else {
+                item.copy(
+                    originalFilePath = originalPath,
+                    originalUri = originalUri,
+                )
+            }
         }
     }
 

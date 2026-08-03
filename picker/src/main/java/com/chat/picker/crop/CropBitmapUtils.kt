@@ -128,7 +128,13 @@ internal object CropBitmapUtils {
         return file to uri
     }
 
-    fun buildResultEntity(file: File, uri: Uri, bitmap: Bitmap, config: CropConfig): MediaEntity {
+    fun buildResultEntity(
+        file: File,
+        uri: Uri,
+        bitmap: Bitmap,
+        config: CropConfig,
+        source: MediaEntity,
+    ): MediaEntity {
         val mime = if (config.isCircle || config.outputFormat == CropOutputFormat.PNG) {
             "image/png"
         } else {
@@ -146,6 +152,8 @@ internal object CropBitmapUtils {
             width = bitmap.width,
             height = bitmap.height,
             mediaType = MediaType.IMAGE,
+            originalFilePath = source.originalFilePath ?: source.filePath,
+            originalUri = source.originalUri ?: source.uri,
         )
     }
 

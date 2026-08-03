@@ -273,7 +273,12 @@ internal class CropImageActivity : AppCompatActivity() {
                     failedMessage = getString(R.string.picker_crop_failed)
                 } else {
                     val (file, uri) = CropBitmapUtils.saveToCache(applicationContext, bitmap, cfg)
-                    entity = CropBitmapUtils.buildResultEntity(file, uri, bitmap, cfg)
+                    val source = sources.getOrNull(saveIndex)
+                    if (source == null) {
+                        failedMessage = getString(R.string.picker_crop_failed)
+                    } else {
+                        entity = CropBitmapUtils.buildResultEntity(file, uri, bitmap, cfg, source)
+                    }
                 }
             } catch (_: Throwable) {
                 failedMessage = getString(R.string.picker_crop_save_failed)

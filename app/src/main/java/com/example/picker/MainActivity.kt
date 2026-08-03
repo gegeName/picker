@@ -381,6 +381,8 @@ class MainActivity : AppCompatActivity() {
                     append("   front camera mirror: true\n")
                 }
                 e.filePath?.let { append("   path=$it\n") }
+                e.originalFilePath?.let { append("   originalPath=$it\n") }
+                e.originalUri?.let { append("   originalUri=$it\n") }
             }
         }
         if (list.isNotEmpty()) {

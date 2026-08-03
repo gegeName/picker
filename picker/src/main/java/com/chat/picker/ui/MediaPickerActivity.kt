@@ -260,8 +260,12 @@ class MediaPickerActivity : AppCompatActivity() {
                 CropImageActivity.EXTRA_RESULT
             )
             when {
-                !items.isNullOrEmpty() -> finishAfterCrop(items)
-                item != null -> finishAfterCrop(listOf(item))
+                !items.isNullOrEmpty() -> finishAfterCrop(
+                    preserveOriginalFilePaths(items, Selection.selected.toList())
+                )
+                item != null -> finishAfterCrop(
+                    preserveOriginalFilePaths(listOf(item), Selection.selected.toList())
+                )
                 else -> finishAfterCrop(Selection.selected.toList())
             }
         }
@@ -798,7 +802,7 @@ class MediaPickerActivity : AppCompatActivity() {
                         if (result.isEmpty()) {
                             updateConfirmButton()
                         } else {
-                            finishAfterCrop(result)
+                            finishAfterCrop(preserveOriginalFilePaths(result, items))
                         }
                     }
                 }
@@ -834,6 +838,26 @@ class MediaPickerActivity : AppCompatActivity() {
             putParcelableArrayListExtra(CropImageActivity.EXTRA_SOURCES, ArrayList(items))
             putExtra(CropImageActivity.EXTRA_SOURCE, items.first())
         })
+    }
+
+    private fun preserveOriginalFilePaths(
+        result: List<MediaEntity>,
+        sources: List<MediaEntity>,
+    ): List<MediaEntity> {
+        if (result.isEmpty() || sources.isEmpty()) return result
+        return result.mapIndexed { index, item ->
+            val source = sources.getOrNull(index) ?: sources.singleOrNull()
+            val originalPath = item.originalFilePath ?: source?.originalFilePath ?: source?.filePath
+            val originalUri = item.originalUri ?: source?.originalUri ?: source?.uri
+            if (item.originalFilePath == originalPath && item.originalUri == originalUri) {
+                item
+            } else {
+                item.copy(
+                    originalFilePath = originalPath,
+                    originalUri = originalUri,
+                )
+            }
+        }
     }
 
     private fun finishAfterCrop(list: List<MediaEntity>) {
