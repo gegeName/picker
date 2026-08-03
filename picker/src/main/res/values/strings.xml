@@ -6,6 +6,12 @@
     <string name="picker_confirm">OK</string>
     <string name="picker_done_all">Done all</string>
     <string name="picker_title">Select files</string>
+    <string name="picker_folder_title">%1$s ▾</string>
+    <string name="picker_folder_all">All</string>
+    <string name="picker_folder_select">Select folder</string>
+    <string name="picker_folder_item_info">%1$d items</string>
+    <string name="picker_folder_item_all_info">%1$d files in total</string>
+    <string name="picker_folder_unknown">Unknown folder</string>
     <string name="picker_toggle_list">List</string>
     <string name="picker_toggle_grid">Grid</string>
     <string name="picker_preview">Preview</string>

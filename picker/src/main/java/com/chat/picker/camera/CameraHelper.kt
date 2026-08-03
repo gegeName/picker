@@ -85,6 +85,8 @@ internal object CameraHelper {
             width = 0,
             height = 0,
             mediaType = MediaType.IMAGE,
+            folderName = file.parentFile?.name.orEmpty(),
+            folderPath = file.parentFile?.absolutePath.orEmpty(),
         )
     }
 
@@ -110,6 +112,8 @@ internal object CameraHelper {
             height = meta.height,
             mediaType = MediaType.VIDEO,
             mirrorHorizontal = mirrorHorizontal,
+            folderName = file.parentFile?.name.orEmpty(),
+            folderPath = file.parentFile?.absolutePath.orEmpty(),
         )
     }
 

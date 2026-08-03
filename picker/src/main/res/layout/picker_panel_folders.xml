@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/picker_bg_folder_panel"
+    android:elevation="8dp"
+    android:orientation="vertical"
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
+
+    <TextView
+        android:id="@+id/folder_panel_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:text="@string/picker_folder_select"
+        android:textColor="#111827"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/folder_recycler"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingHorizontal="8dp" />
+</LinearLayout>

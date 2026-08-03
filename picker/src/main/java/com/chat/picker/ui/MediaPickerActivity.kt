@@ -4,9 +4,13 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
+import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -25,6 +29,7 @@ import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
+import com.chat.picker.data.MediaFolder
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.ImageLoader
 import com.chat.picker.model.MediaEntity
@@ -47,6 +52,7 @@ class MediaPickerActivity : AppCompatActivity() {
     private lateinit var btnToggle: TextView
     private lateinit var btnConfirm: TextView
     private lateinit var btnPreview: TextView
+    private lateinit var titleView: TextView
     private lateinit var partialBar: View
     private var loadingDialog: LoadingDialog? = null
 
@@ -54,6 +60,9 @@ class MediaPickerActivity : AppCompatActivity() {
     private var adapter: MediaListAdapter? = null
     private var footerAdapter: FooterAdapter? = null
     private var activePreviewId: String? = null
+    private var currentFolder: MediaFolder? = null
+    private var mediaFolders: List<MediaFolder> = emptyList()
+    private var folderPopup: PopupWindow? = null
 
     private val transitionTargetResolver = object : MediaPreviewTransitionBridge.TargetResolver {
         override fun resolveTargetBounds(item: MediaEntity, callback: (Rect?) -> Unit) {
@@ -66,6 +75,7 @@ class MediaPickerActivity : AppCompatActivity() {
     private var hasMore: Boolean = true
     private var isLoadingPage: Boolean = false
     private var lastTriggerAt: Long = 0L
+    private var dataLoadVersion: Int = 0
     private val triggerCooldownMs = 200L
     private val loadedKeys = HashSet<Long>()
     private val prefetchThreshold = 10
@@ -78,7 +88,8 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun shouldShowCamera(): Boolean =
         config.showCameraEntry && isGrid &&
-            config.filter.type != MediaType.AUDIO
+            config.filter.type != MediaType.AUDIO &&
+            currentFolder == null
 
     private fun cameraOffset(): Int = if (shouldShowCamera()) 1 else 0
 
@@ -96,6 +107,7 @@ class MediaPickerActivity : AppCompatActivity() {
         if (PermissionHelper.anyUsable(this, config.filter.type)) {
             MediaSelector.invalidateCache()
             loadData()
+            loadFolders()
             updatePartialBarVisibility()
         } else {
             emptyView.visibility = View.VISIBLE
@@ -130,6 +142,7 @@ class MediaPickerActivity : AppCompatActivity() {
             }
             insertCapturedMedia(entity)
             MediaSelector.invalidateCache()
+            mediaFolders = emptyList()
         } else {
             p.onFail()
         }
@@ -290,9 +303,11 @@ class MediaPickerActivity : AppCompatActivity() {
         recycler = findViewById(R.id.picker_recycler)
         emptyView = findViewById(R.id.picker_empty)
         partialBar = findViewById(R.id.picker_partial_bar)
+        titleView = findViewById(R.id.picker_title)
         btnToggle = findViewById(R.id.picker_btn_toggle)
         btnConfirm = findViewById(R.id.picker_confirm)
         btnPreview = findViewById(R.id.picker_preview)
+        updateFolderTitle()
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -309,6 +324,7 @@ class MediaPickerActivity : AppCompatActivity() {
             cancelPicker()
         }
         btnToggle.setOnClickListener { toggleLayout() }
+        titleView.setOnClickListener { showFolderPicker() }
         btnConfirm.setOnClickListener { finishWithResult() }
         findViewById<TextView>(R.id.picker_partial_manage).setOnClickListener {
             val perms = PermissionHelper.requiredPermissions(config.filter.type)
@@ -452,6 +468,7 @@ class MediaPickerActivity : AppCompatActivity() {
         val perms = PermissionHelper.requiredPermissions(config.filter.type)
         if (PermissionHelper.anyUsable(this, config.filter.type)) {
             loadData()
+            loadFolders()
             updatePartialBarVisibility()
         } else if (!PermissionHelper.hasDeclaredPermissions(this, perms)) {
             emptyView.visibility = View.VISIBLE
@@ -470,6 +487,9 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun loadData() {
+        val loadToken = ++dataLoadVersion
+        currentFolder = null
+        updateFolderTitle()
         emptyView.visibility = View.GONE
         currentOffset = 0
         hasMore = true
@@ -489,7 +509,17 @@ class MediaPickerActivity : AppCompatActivity() {
         }
 
         showLoading(getString(R.string.picker_loading_files), firstLoad = true)
-        loadPageInternal(isCanonical, isFirstPage = true)
+        loadPageInternal(isCanonical, isFirstPage = true, loadToken = loadToken)
+    }
+
+    private fun loadFolders() {
+        MediaRepository.queryFoldersAsync(applicationContext, config.filter) { folders ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                mediaFolders = folders
+                updateFolderTitle()
+            }
+        }
     }
 
     private fun seedPreSelectedAtTop() {
@@ -502,12 +532,12 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun loadNextPage() {
-        if (isLoadingPage || !hasMore) return
+        if (currentFolder != null || isLoadingPage || !hasMore) return
         val isCanonical = config.filter.mimeTypes.isEmpty() && config.filter.extraSelection == null
-        loadPageInternal(isCanonical, isFirstPage = false)
+        loadPageInternal(isCanonical, isFirstPage = false, loadToken = dataLoadVersion)
     }
 
-    private fun loadPageInternal(isCanonical: Boolean, isFirstPage: Boolean) {
+    private fun loadPageInternal(isCanonical: Boolean, isFirstPage: Boolean, loadToken: Int) {
         isLoadingPage = true
         val offset = currentOffset
         val streaming = isFirstPage &&
@@ -520,6 +550,7 @@ class MediaPickerActivity : AppCompatActivity() {
                 onPage = { page ->
                     if (page.isEmpty()) return@queryAsync
                     runOnUiThread {
+                        if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
                         if (firstBatch) {
                             if (isCanonical) MediaSelector.putCache(config.filter.type, page)
                             dismissLoading()
@@ -531,7 +562,10 @@ class MediaPickerActivity : AppCompatActivity() {
                     }
                 },
             ) {
-                runOnUiThread { finishStream() }
+                runOnUiThread {
+                    if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
+                    finishStream()
+                }
             }
             return
         }
@@ -543,6 +577,7 @@ class MediaPickerActivity : AppCompatActivity() {
             offset = offset, limit = pageSize,
         ) { list ->
             runOnUiThread {
+                if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
                 if (isFirstPage && isCanonical && list.isNotEmpty()) {
                     MediaSelector.putCache(config.filter.type, list)
                 }
@@ -605,6 +640,127 @@ class MediaPickerActivity : AppCompatActivity() {
         }
     }
 
+    private fun showFolderPicker() {
+        if (!PermissionHelper.anyUsable(this, config.filter.type)) {
+            Toast.makeText(this, R.string.picker_no_media_permission, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val folders = mediaFolders
+        if (folders.isEmpty()) {
+            showLoading(getString(R.string.picker_loading_files), firstLoad = false)
+            MediaRepository.queryFoldersAsync(applicationContext, config.filter) { loaded ->
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    dismissLoading()
+                    mediaFolders = loaded
+                    showFolderPickerDialog(loaded)
+                }
+            }
+            return
+        }
+        showFolderPickerDialog(folders)
+    }
+
+    private fun showFolderPickerDialog(folders: List<MediaFolder>) {
+        folderPopup?.dismiss()
+        val content = LayoutInflater.from(this).inflate(R.layout.picker_panel_folders, null)
+        val list = content.findViewById<RecyclerView>(R.id.folder_recycler)
+        val options = buildFolderOptions(folders)
+        val maxListHeight = (resources.displayMetrics.heightPixels * 0.58f).toInt()
+        list.layoutParams = list.layoutParams.apply {
+            height = (options.size * dp(72)).coerceAtMost(maxListHeight)
+        }
+        list.layoutManager = LinearLayoutManager(this)
+        list.itemAnimator = null
+        list.adapter = MediaFolderAdapter { option ->
+            folderPopup?.dismiss()
+            selectFolder(option.folder)
+        }.apply {
+            submitList(options)
+        }
+
+        folderPopup = PopupWindow(
+            content,
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            true,
+        ).apply {
+            isOutsideTouchable = true
+            elevation = dp(8).toFloat()
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+            showAsDropDown(findViewById(R.id.picker_top_bar), 0, 0)
+        }
+    }
+
+    private fun buildFolderOptions(folders: List<MediaFolder>): List<MediaFolderAdapter.FolderOption> {
+        val total = folders.sumOf { it.count }
+        val firstCover = folders.firstNotNullOfOrNull { it.cover }
+        return ArrayList<MediaFolderAdapter.FolderOption>(folders.size + 1).apply {
+            add(
+                MediaFolderAdapter.FolderOption(
+                    id = "__all__",
+                    displayName = getString(R.string.picker_folder_all),
+                    count = total,
+                    folder = null,
+                    cover = firstCover,
+                    selected = currentFolder == null,
+                )
+            )
+            folders.forEach { folder ->
+                add(
+                    MediaFolderAdapter.FolderOption(
+                        id = folder.id,
+                        displayName = folder.displayName.ifBlank {
+                            getString(R.string.picker_folder_unknown)
+                        },
+                        count = folder.count,
+                        folder = folder,
+                        cover = folder.cover,
+                        selected = currentFolder?.id == folder.id,
+                    )
+                )
+            }
+        }
+    }
+
+    private fun selectFolder(folder: MediaFolder?) {
+        if (folder == null) {
+            loadData()
+            return
+        }
+        dataLoadVersion++
+        currentFolder = folder
+        updateFolderTitle()
+        dismissLoading()
+        currentOffset = folder.items.size
+        hasMore = false
+        isLoadingPage = false
+        lastTriggerAt = 0L
+        loadedKeys.clear()
+        Selection.all.clear()
+        folder.items.forEach { item ->
+            if (loadedKeys.add(keyOf(item))) Selection.all.add(item)
+        }
+        footerAdapter?.setState(
+            if (Selection.all.isEmpty()) FooterAdapter.State.HIDDEN else FooterAdapter.State.NO_MORE
+        )
+        emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
+        submitMediaList(scrollToTop = true)
+        updateConfirmButton()
+    }
+
+    private fun updateFolderTitle() {
+        if (!::titleView.isInitialized) return
+        val name = currentFolder
+            ?.displayName
+            ?.ifBlank { getString(R.string.picker_folder_unknown) }
+            ?: getString(R.string.picker_folder_all)
+        titleView.text = getString(R.string.picker_folder_title, name)
+    }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density + 0.5f).toInt()
+
     private fun scrollListToTop() {
         recycler.stopScroll()
         when (val lm = recycler.layoutManager) {
@@ -631,6 +787,8 @@ class MediaPickerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        folderPopup?.dismiss()
+        folderPopup = null
         MediaPreviewTransitionBridge.unregister(activePreviewId)
         activePreviewId = null
         if (isFinishing) {

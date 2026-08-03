@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.os.Looper
 import android.provider.MediaStore
 import android.provider.OpenableColumns
@@ -28,6 +29,7 @@ import com.chat.picker.ui.LoadingDialog
 import com.chat.picker.ui.MediaPickerActivity
 import com.chat.picker.ui.PermissionHelper
 import com.chat.picker.util.StorageAccess
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -509,7 +511,7 @@ internal object MediaSelectorInternal {
     }
 
     private fun systemUriToEntity(ctx: Context, uri: Uri, fallbackType: MediaType): MediaEntity? {
-        val projection = arrayOf(
+        val projection = mutableListOf(
             MediaStore.MediaColumns._ID,
             @Suppress("DEPRECATION") MediaStore.MediaColumns.DATA,
             MediaStore.MediaColumns.DISPLAY_NAME,
@@ -519,7 +521,11 @@ internal object MediaSelectorInternal {
             MediaStore.MediaColumns.DURATION,
             MediaStore.MediaColumns.WIDTH,
             MediaStore.MediaColumns.HEIGHT,
-        )
+        ).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                add(MediaStore.MediaColumns.RELATIVE_PATH)
+            }
+        }.toTypedArray()
         return runCatching {
             ctx.contentResolver.query(uri, projection, null, null, null)?.use { c ->
                 if (!c.moveToFirst()) return null
@@ -536,10 +542,17 @@ internal object MediaSelectorInternal {
                     mime.startsWith("video/") -> MediaType.VIDEO
                     else -> MediaType.ALL
                 }
+                val filePath = c.optString(@Suppress("DEPRECATION") MediaStore.MediaColumns.DATA)
+                val relativePath = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    c.optString(MediaStore.MediaColumns.RELATIVE_PATH)
+                } else {
+                    null
+                }
+                val folder = resolveFolder(filePath, relativePath)
                 MediaEntity(
                     id = c.getLong(c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)),
                     uri = uri,
-                    filePath = c.optString(@Suppress("DEPRECATION") MediaStore.MediaColumns.DATA),
+                    filePath = filePath,
                     displayName = c.getString(c.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME))
                         ?: "",
                     mimeType = mime,
@@ -549,9 +562,32 @@ internal object MediaSelectorInternal {
                     width = c.optInt(MediaStore.MediaColumns.WIDTH),
                     height = c.optInt(MediaStore.MediaColumns.HEIGHT),
                     mediaType = mediaType,
+                    folderName = folder.name,
+                    folderPath = folder.path,
                 )
             }
         }.getOrNull()
+    }
+
+    private data class FolderInfo(
+        val name: String,
+        val path: String,
+    )
+
+    private fun resolveFolder(filePath: String?, relativePath: String?): FolderInfo {
+        val cleanRelative = relativePath
+            ?.trim()
+            ?.trimEnd('/')
+            .orEmpty()
+        if (cleanRelative.isNotEmpty()) {
+            val name = cleanRelative.substringAfterLast('/').ifBlank { cleanRelative }
+            return FolderInfo(name = name, path = cleanRelative)
+        }
+        val parent = filePath?.let { File(it).parentFile }
+        return FolderInfo(
+            name = parent?.name.orEmpty(),
+            path = parent?.absolutePath.orEmpty(),
+        )
     }
 
     private fun deliverResultAndClear(

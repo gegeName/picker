@@ -57,6 +57,38 @@ object MediaRepository {
         }
     }
 
+    internal fun queryFoldersAsync(
+        context: Context,
+        filter: MediaFilter,
+        callback: (List<MediaFolder>) -> Unit,
+    ) {
+        ioExecutor.execute {
+            val list = runCatching { queryFolders(context, filter) }
+                .getOrDefault(emptyList())
+            callback(list)
+        }
+    }
+
+    internal fun queryFolders(context: Context, filter: MediaFilter): List<MediaFolder> {
+        val items = query(context, filter)
+        if (items.isEmpty()) return emptyList()
+        return items
+            .groupBy { folderKeyOf(it) }
+            .map { (key, folderItems) ->
+                val first = folderItems.first()
+                MediaFolder(
+                    id = key,
+                    displayName = first.folderName.ifBlank { folderNameFromPath(first.filePath) },
+                    path = first.folderPath.ifBlank { folderPathFromFilePath(first.filePath) },
+                    items = folderItems,
+                )
+            }
+            .sortedWith(
+                compareByDescending<MediaFolder> { it.cover?.dateAddedSec ?: 0L }
+                    .thenBy { it.displayName.lowercase(Locale.US) }
+            )
+    }
+
     private fun streamScan(
         context: Context,
         filter: MediaFilter,
@@ -119,6 +151,11 @@ object MediaRepository {
             val wIdx = c.optionalIndex(MediaStore.MediaColumns.WIDTH)
             val hIdx = c.optionalIndex(MediaStore.MediaColumns.HEIGHT)
             val albumIdx = c.optionalIndex(MediaStore.Audio.AudioColumns.ALBUM_ID)
+            val relativePathIdx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                c.optionalIndex(MediaStore.MediaColumns.RELATIVE_PATH)
+            } else {
+                -1
+            }
 
             while (c.moveToNext()) {
                 val id = c.getLong(idIdx)
@@ -137,10 +174,13 @@ object MediaRepository {
                 } else {
                     0L
                 }
+                val filePath = if (dataIdx >= 0) c.getString(dataIdx) else null
+                val relativePath = if (relativePathIdx >= 0) c.getString(relativePathIdx) else null
+                val folder = resolveFolder(filePath, relativePath)
                 list += MediaEntity(
                     id = id,
                     uri = itemUri,
-                    filePath = if (dataIdx >= 0) c.getString(dataIdx) else null,
+                    filePath = filePath,
                     displayName = c.getString(nameIdx) ?: "",
                     mimeType = mime,
                     sizeBytes = c.getLong(sizeIdx),
@@ -150,6 +190,8 @@ object MediaRepository {
                     height = if (hIdx >= 0) c.getInt(hIdx) else 0,
                     mediaType = resolvedType,
                     albumId = albumId,
+                    folderName = folder.name,
+                    folderPath = folder.path,
                 )
             }
         }
@@ -330,6 +372,8 @@ object MediaRepository {
             height = metadata.height,
             mediaType = mediaType,
             albumId = 0L,
+            folderName = file.parentFile?.name.orEmpty(),
+            folderPath = file.parentFile?.absolutePath.orEmpty(),
         )
     }
 
@@ -359,6 +403,11 @@ object MediaRepository {
         val width: Int = 0,
         val height: Int = 0,
         val durationMs: Long = 0L,
+    )
+
+    private data class FolderInfo(
+        val name: String,
+        val path: String,
     )
 
     private fun guessMime(file: File): String {
@@ -500,8 +549,45 @@ object MediaRepository {
         if (type == MediaType.AUDIO) {
             base += MediaStore.Audio.AudioColumns.ALBUM_ID
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            base += MediaStore.MediaColumns.RELATIVE_PATH
+        }
         return base.toTypedArray()
     }
+
+    private fun resolveFolder(filePath: String?, relativePath: String?): FolderInfo {
+        val cleanRelative = relativePath
+            ?.trim()
+            ?.trimEnd('/')
+            .orEmpty()
+        if (cleanRelative.isNotEmpty()) {
+            val name = cleanRelative.substringAfterLast('/').ifBlank { cleanRelative }
+            return FolderInfo(name = name, path = cleanRelative)
+        }
+
+        val cleanPath = folderPathFromFilePath(filePath)
+        if (cleanPath.isNotEmpty()) {
+            return FolderInfo(name = folderNameFromPath(filePath), path = cleanPath)
+        }
+
+        return FolderInfo(name = "", path = "")
+    }
+
+    private fun folderKeyOf(item: MediaEntity): String {
+        val path = item.folderPath.ifBlank { folderPathFromFilePath(item.filePath) }
+        if (path.isNotBlank()) return path
+        return item.folderName.ifBlank { "__unknown__" }
+    }
+
+    private fun folderPathFromFilePath(filePath: String?): String =
+        filePath
+            ?.let { File(it).parentFile?.absolutePath }
+            .orEmpty()
+
+    private fun folderNameFromPath(filePath: String?): String =
+        filePath
+            ?.let { File(it).parentFile?.name }
+            .orEmpty()
 
     private fun buildSelection(filter: MediaFilter): Pair<String?, Array<String>?> {
         val parts = mutableListOf<String>()

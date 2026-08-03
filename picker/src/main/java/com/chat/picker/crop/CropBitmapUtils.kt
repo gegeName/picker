@@ -154,6 +154,8 @@ internal object CropBitmapUtils {
             mediaType = MediaType.IMAGE,
             originalFilePath = source.originalFilePath ?: source.filePath,
             originalUri = source.originalUri ?: source.uri,
+            folderName = source.folderName,
+            folderPath = source.folderPath,
         )
     }
 

@@ -35,6 +35,10 @@ data class MediaEntity(
      * 图片裁剪 / 压缩后 [uri] 会变成处理后的文件 Uri，此字段保留处理前源文件 Uri。
      */
     val originalUri: Uri? = null,
+    /** 媒体所在目录名称，用于选择页按文件夹筛选。 */
+    val folderName: String = "",
+    /** 媒体所在目录路径或相对路径，用于选择页按文件夹筛选。 */
+    val folderPath: String = "",
 ) : Parcelable {
 
     val isImage: Boolean get() = mimeType.startsWith("image/")
@@ -67,6 +71,8 @@ data class MediaEntity(
         } else {
             null
         },
+        if (parcel.dataAvail() > 0) parcel.readString().orEmpty() else "",
+        if (parcel.dataAvail() > 0) parcel.readString().orEmpty() else "",
     )
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
@@ -85,6 +91,8 @@ data class MediaEntity(
         dest.writeByte(if (mirrorHorizontal) 1 else 0)
         dest.writeString(originalFilePath)
         dest.writeString(originalUri?.toString())
+        dest.writeString(folderName)
+        dest.writeString(folderPath)
     }
 
     override fun describeContents(): Int = 0

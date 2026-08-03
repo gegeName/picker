@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/folder_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="72dp"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingHorizontal="8dp">
+
+    <FrameLayout
+        android:layout_width="54dp"
+        android:layout_height="54dp">
+
+        <View
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:layout_gravity="top|end"
+            android:background="@drawable/picker_bg_folder_thumb_stack" />
+
+        <com.chat.picker.ui.RoundedImageView
+            android:id="@+id/folder_cover"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom|start"
+            android:background="@drawable/picker_bg_thumb_frame"
+            android:scaleType="centerCrop" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/folder_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="middle"
+            android:maxLines="1"
+            android:textColor="#111827"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/folder_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#6B7280"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/folder_selected"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:gravity="center"
+        android:text="✓"
+        android:textColor="#1677FF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+</LinearLayout>

@@ -6,6 +6,12 @@
     <string name="picker_confirm">确定</string>
     <string name="picker_done_all">全部完成</string>
     <string name="picker_title">选择文件</string>
+    <string name="picker_folder_title">%1$s ▾</string>
+    <string name="picker_folder_all">全部</string>
+    <string name="picker_folder_select">选择文件夹</string>
+    <string name="picker_folder_item_info">%1$d 项</string>
+    <string name="picker_folder_item_all_info">共 %1$d 个文件</string>
+    <string name="picker_folder_unknown">未知文件夹</string>
     <string name="picker_toggle_list">列表</string>
     <string name="picker_toggle_grid">网格</string>
     <string name="picker_preview">预览</string>

@@ -25,16 +25,30 @@
             android:textColor="#FFFFFF"
             android:textSize="14sp" />
 
-        <TextView
-            android:id="@+id/picker_title"
+        <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
-            android:text="@string/picker_title"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:paddingHorizontal="8dp">
+
+            <TextView
+                android:id="@+id/picker_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:background="@drawable/picker_bg_folder_title"
+                android:clickable="true"
+                android:ellipsize="end"
+                android:focusable="true"
+                android:gravity="center"
+                android:maxLines="1"
+                android:maxWidth="220dp"
+                android:text="@string/picker_title"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+        </FrameLayout>
 
         <TextView
             android:id="@+id/picker_btn_toggle"
