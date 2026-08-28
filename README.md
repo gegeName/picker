@@ -362,6 +362,8 @@ PickIt.pickFiles(
 | `isVideo` | 是否视频 |
 | `isAudio` | 是否音频 |
 | `isMotionPhoto` | 是否为实况图 |
+| `originalFilePath` | 原始文件路径（图片处理后保留原图路径） |
+| `originalUri` | 原始文件 Uri |
 | `albumArtUri` | 音频专辑封面 Uri，无封面时为空 |
 
 ### 拍照和录视频

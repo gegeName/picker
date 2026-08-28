@@ -362,6 +362,8 @@ Canceling selection does not trigger the `start` callback.
 | `isVideo` | Whether it is a video |
 | `isAudio` | Whether it is audio |
 | `isMotionPhoto` | Whether it is a Motion Photo |
+| `originalFilePath` | Original file path (retained after image processing) |
+| `originalUri` | Original file Uri |
 | `albumArtUri` | Audio album cover Uri, null if absent |
 
 ### Photo Capture and Video Recording
