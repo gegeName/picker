@@ -9,13 +9,14 @@ An Android image, video, audio, and file picker. It supports multi-select, previ
 - Select images, videos, audio, image + video, or all files.
 - `MediaType.ALL` can return images, videos, audio, and other files such as PPT, Word, Excel, TXT, PDF, and ZIP.
 - Grid/list mode, multi-select/single-select, and pre-selected item restore.
-- Full-screen image and video preview.
+- Full-screen image and video preview, supporting Motion Photo / Live Photo long-press playback.
 - Custom thumbnails for other files, plus custom document rendering/opening in the preview page.
 - Photo capture, video recording, timed video recording, and camera entry at the first list item.
 - Image crop: free ratio, fixed ratio, circle crop, output size, and quality control.
 - Image editing: multi-image editing, crop, brush, text, mosaic, color, and brush size.
 - Image compression and video compression with progress callbacks.
 - Android Photo Picker and SAF document picker.
+- Motion Photo identification: automatically identifies Google Motion Photo standard Live Photos.
 - Custom image loading engine.
 - Custom preview for other file types.
 - Third-party image crop/edit framework integration.
@@ -360,6 +361,7 @@ Canceling selection does not trigger the `start` callback.
 | `isImage` | Whether it is an image |
 | `isVideo` | Whether it is a video |
 | `isAudio` | Whether it is audio |
+| `isMotionPhoto` | Whether it is a Motion Photo |
 | `albumArtUri` | Audio album cover Uri, null if absent |
 
 ### Photo Capture and Video Recording
