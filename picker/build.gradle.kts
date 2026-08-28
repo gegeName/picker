@@ -39,6 +39,10 @@ dependencies {
 
     // OkHttp 用于 MediaUploader
     api("com.squareup.okhttp3:okhttp:5.3.2")
+
+    // Media3 ExoPlayer 用于实况图 (Motion Photo) 预览
+    implementation("androidx.media3:media3-exoplayer:1.1.0")
+    implementation("androidx.media3:media3-ui:1.1.0")
 }
 
 apply(from = "jitpack.gradle")

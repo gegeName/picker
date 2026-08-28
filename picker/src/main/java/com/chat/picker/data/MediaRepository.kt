@@ -156,6 +156,11 @@ object MediaRepository {
             } else {
                 -1
             }
+            val motionIdx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                c.optionalIndex("is_motion_photo")
+            } else {
+                -1
+            }
 
             while (c.moveToNext()) {
                 val id = c.getLong(idIdx)
@@ -192,6 +197,11 @@ object MediaRepository {
                     albumId = albumId,
                     folderName = folder.name,
                     folderPath = folder.path,
+                    isMotionPhoto = if (motionIdx >= 0) {
+                        c.getInt(motionIdx) != 0
+                    } else {
+                        filePath?.let { checkIsMotionPhoto(File(it)) } ?: false
+                    },
                 )
             }
         }
@@ -374,7 +384,31 @@ object MediaRepository {
             albumId = 0L,
             folderName = file.parentFile?.name.orEmpty(),
             folderPath = file.parentFile?.absolutePath.orEmpty(),
+            isMotionPhoto = checkIsMotionPhoto(file),
         )
+    }
+
+    private fun checkIsMotionPhoto(file: File): Boolean {
+        if (!file.exists() || file.length() < 1024) return false
+        val ext = file.extension.lowercase(Locale.US)
+        if (ext != "jpg" && ext != "jpeg" && ext != "heic" && ext != "heif") return false
+        
+        return try {
+            file.inputStream().use { input ->
+                val buffer = ByteArray(16384)
+                val read = input.read(buffer)
+                if (read > 0) {
+                    val content = String(buffer, 0, read, Charsets.UTF_8)
+                    val isMotion = content.contains("MotionPhoto=\"1\"") || 
+                                   content.contains("MotionPhoto>1") ||
+                                   content.contains("MicroVideo=\"1\"")
+                    if (isMotion) PickerLog.d("MediaRepository identified Motion Photo: ${file.name}")
+                    isMotion
+                } else false
+            }
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private data class FileCandidate(
@@ -551,6 +585,9 @@ object MediaRepository {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             base += MediaStore.MediaColumns.RELATIVE_PATH
+            if (type == MediaType.IMAGE || type == MediaType.IMAGE_VIDEO || type == MediaType.ALL) {
+                base += "is_motion_photo"
+            }
         }
         return base.toTypedArray()
     }

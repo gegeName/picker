@@ -39,6 +39,8 @@ data class MediaEntity(
     val folderName: String = "",
     /** 媒体所在目录路径或相对路径，用于选择页按文件夹筛选。 */
     val folderPath: String = "",
+    /** 是否为实况图 (Motion Photo) */
+    val isMotionPhoto: Boolean = false,
 ) : Parcelable {
 
     val isImage: Boolean get() = mimeType.startsWith("image/")
@@ -73,6 +75,7 @@ data class MediaEntity(
         },
         if (parcel.dataAvail() > 0) parcel.readString().orEmpty() else "",
         if (parcel.dataAvail() > 0) parcel.readString().orEmpty() else "",
+        if (parcel.dataAvail() > 0) parcel.readByte() != 0.toByte() else false,
     )
 
     override fun writeToParcel(dest: Parcel, flags: Int) {
@@ -93,6 +96,7 @@ data class MediaEntity(
         dest.writeString(originalUri?.toString())
         dest.writeString(folderName)
         dest.writeString(folderPath)
+        dest.writeByte(if (isMotionPhoto) 1 else 0)
     }
 
     override fun describeContents(): Int = 0

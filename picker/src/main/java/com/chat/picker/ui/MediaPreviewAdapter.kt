@@ -4,6 +4,7 @@ import android.media.MediaPlayer
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -16,13 +17,20 @@ import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.VideoView
+import android.view.MotionEvent
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.ui.AspectRatioFrameLayout
 import com.chat.picker.R
 import com.chat.picker.api.MediaSelector
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.preview.IOtherPreviewProvider
+import com.chat.picker.util.PickerLog
 import com.chat.picker.util.ZoomGestureHelper
 
 internal class MediaPreviewAdapter
@@ -97,18 +105,100 @@ internal class MediaPreviewAdapter
     private inner class ImageVH(v: View) : RecyclerView.ViewHolder(v) {
         val image: ImageView = v.findViewById(R.id.page_image)
         private val loading: ProgressBar = v.findViewById(R.id.page_loading)
+        private val liveBadge: View = v.findViewById(R.id.page_live_badge)
+        private val liveContainer: ViewGroup = v.findViewById(R.id.page_live_container)
+
+        private var player: ExoPlayer? = null
+        private var playerView: PlayerView? = null
+        private var isPlayingLive = false
+        private var zoomHelper: ZoomGestureHelper? = null
+
+        private val gestureDetector = GestureDetector(v.context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onLongPress(e: MotionEvent) {
+                val item = itemView.tag as? MediaEntity
+                if (item?.isMotionPhoto == true) {
+                    startLivePreview(item)
+                }
+            }
+        })
 
         init {
-            ZoomGestureHelper.attach(image)
+            zoomHelper = ZoomGestureHelper.attach(image)
+            image.setOnTouchListener { v, event ->
+                gestureDetector.onTouchEvent(event)
+                if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
+                    if (isPlayingLive) {
+                        stopLivePreview()
+                    }
+                }
+                zoomHelper?.onTouch(v, event) ?: false
+            }
         }
 
         fun bind(item: MediaEntity) {
+            PickerLog.d("Preview Image bind: ${item.displayName}, isMotion=${item.isMotionPhoto}")
+            itemView.tag = item
             loading.visibility = View.GONE
             MediaSelector.imageEngine().loadOriginal(image, item)
+            liveBadge.visibility = if (item.isMotionPhoto) View.VISIBLE else View.GONE
+            liveContainer.visibility = View.GONE
+            isPlayingLive = false
+        }
+
+        private fun startLivePreview(item: MediaEntity) {
+            isPlayingLive = true
+            val ctx = itemView.context
+            val p = player ?: ExoPlayer.Builder(ctx).build().also {
+                player = it
+                it.addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_ENDED) {
+                            stopLivePreview()
+                        }
+                    }
+
+                    override fun onRenderedFirstFrame() {
+                        // 只有当视频首帧渲染出来后，才显示容器，实现无缝切换
+                        liveContainer.visibility = View.VISIBLE
+                    }
+                })
+            }
+            val pv = playerView ?: PlayerView(ctx).also {
+                it.useController = false
+                it.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                liveContainer.addView(
+                    it,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+                playerView = it
+            }
+            pv.player = p
+            p.setMediaItem(MediaItem.fromUri(item.uri))
+            p.prepare()
+            p.play()
+            // 初始设为 INVISIBLE 而非 GONE，确保 Surface 能够被创建
+            liveContainer.visibility = View.INVISIBLE
+            liveBadge.visibility = View.GONE
+        }
+
+        private fun stopLivePreview() {
+            isPlayingLive = false
+            player?.stop()
+            liveContainer.visibility = View.GONE
+            val item = itemView.tag as? MediaEntity
+            if (item?.isMotionPhoto == true) {
+                liveBadge.visibility = View.VISIBLE
+            }
         }
 
         fun release() {
+            isPlayingLive = false
             image.setImageDrawable(null)
+            player?.release()
+            player = null
+            playerView = null
+            liveContainer.removeAllViews()
         }
     }
 

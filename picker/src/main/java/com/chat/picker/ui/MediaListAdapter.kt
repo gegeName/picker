@@ -126,6 +126,7 @@ internal class MediaListAdapter(
         private val check: TextView = v.findViewById(R.id.item_check)
         private val checkBox: View = v.findViewById(R.id.item_check_box)
         private val mask: View = v.findViewById(R.id.item_mask)
+        private val live: View = v.findViewById(R.id.item_live)
 
         init {
             itemView.setOnClickListener {
@@ -140,7 +141,7 @@ internal class MediaListAdapter(
 
         fun bindFull(item: MediaEntity) {
             MediaSelector.imageEngine().loadThumbnail(thumb, item)
-            bindBadge(duration, type, item)
+            bindBadge(duration, type, live, item)
 
             applyCheckState(item)
         }
@@ -168,6 +169,7 @@ internal class MediaListAdapter(
         private val name: TextView = v.findViewById(R.id.item_name)
         private val info: TextView = v.findViewById(R.id.item_info)
         private val check: TextView = v.findViewById(R.id.item_check)
+        private val live: View = v.findViewById(R.id.item_live)
 
         init {
             itemView.setOnClickListener {
@@ -187,7 +189,7 @@ internal class MediaListAdapter(
                 append(formatSize(item.sizeBytes))
                 if (item.durationMs > 0) append("  ").append(formatDuration(item.durationMs))
             }
-            bindBadge(duration, type, item)
+            bindBadge(duration, type, live, item)
 
             applyCheckState(item)
         }
@@ -227,7 +229,8 @@ internal class MediaListAdapter(
         return String.format("%02d:%02d", s / 60, s % 60)
     }
 
-    private fun bindBadge(duration: TextView, type: TextView, item: MediaEntity) {
+    private fun bindBadge(duration: TextView, type: TextView, live: View, item: MediaEntity) {
+        live.visibility = if (item.isMotionPhoto) View.VISIBLE else View.GONE
         if (item.isVideo) {
             if (item.durationMs > 0) {
                 duration.visibility = View.VISIBLE
@@ -236,6 +239,7 @@ internal class MediaListAdapter(
                 duration.visibility = View.GONE
             }
             type.visibility = View.GONE
+            live.visibility = View.GONE
             return
         }
         duration.visibility = View.GONE

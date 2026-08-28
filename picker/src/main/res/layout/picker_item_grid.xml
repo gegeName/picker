@@ -50,6 +50,23 @@
         android:textStyle="bold"
         android:visibility="gone" />
 
+    <TextView
+        android:id="@+id/item_live"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="4dp"
+        android:background="@drawable/picker_bg_media_badge"
+        android:drawablePadding="2dp"
+        android:gravity="center"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:text="LIVE"
+        android:textColor="#FFFFFF"
+        android:textSize="9sp"
+        android:visibility="gone"
+        android:drawableStart="@drawable/picker_ic_live" />
+
     <FrameLayout
         android:id="@+id/item_check_box"
         android:layout_width="36dp"
