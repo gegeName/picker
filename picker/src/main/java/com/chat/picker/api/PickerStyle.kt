@@ -54,6 +54,18 @@ class PickerStyle() : Parcelable {
     /** 相机界面：重拍按钮背景色 */
     var cameraRetakeButtonBackgroundColor: Int = Color.parseColor("#F2FFFFFF")
 
+    /** 图片编辑/裁剪界面：底部工具按钮选中背景色 */
+    var editToolSelectedBackgroundColor: Int = Color.parseColor("#16A34A")
+
+    /** 图片编辑/裁剪界面：底部工具按钮未选中背景色 */
+    var editToolUnselectedBackgroundColor: Int = Color.parseColor("#252525")
+
+    /** 图片编辑/裁剪界面：底部工具按钮选中描边颜色 */
+    var editToolSelectedStrokeColor: Int = Color.parseColor("#5BE58A")
+
+    /** 图片编辑/裁剪界面：底部工具按钮未选中描边颜色 */
+    var editToolUnselectedStrokeColor: Int = Color.parseColor("#3A3A3A")
+
     fun copy(): PickerStyle {
         val style = PickerStyle()
         style.themeColor = this.themeColor
@@ -71,6 +83,10 @@ class PickerStyle() : Parcelable {
         style.lightStatusBarIcons = this.lightStatusBarIcons
         style.cameraDoneButtonBackgroundColor = this.cameraDoneButtonBackgroundColor
         style.cameraRetakeButtonBackgroundColor = this.cameraRetakeButtonBackgroundColor
+        style.editToolSelectedBackgroundColor = this.editToolSelectedBackgroundColor
+        style.editToolUnselectedBackgroundColor = this.editToolUnselectedBackgroundColor
+        style.editToolSelectedStrokeColor = this.editToolSelectedStrokeColor
+        style.editToolUnselectedStrokeColor = this.editToolUnselectedStrokeColor
         return style
     }
 
@@ -90,6 +106,10 @@ class PickerStyle() : Parcelable {
         lightStatusBarIcons = parcel.readByte() != 0.toByte()
         cameraDoneButtonBackgroundColor = parcel.readInt()
         cameraRetakeButtonBackgroundColor = parcel.readInt()
+        editToolSelectedBackgroundColor = parcel.readInt()
+        editToolUnselectedBackgroundColor = parcel.readInt()
+        editToolSelectedStrokeColor = parcel.readInt()
+        editToolUnselectedStrokeColor = parcel.readInt()
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
@@ -108,6 +128,10 @@ class PickerStyle() : Parcelable {
         parcel.writeByte(if (lightStatusBarIcons) 1 else 0)
         parcel.writeInt(cameraDoneButtonBackgroundColor)
         parcel.writeInt(cameraRetakeButtonBackgroundColor)
+        parcel.writeInt(editToolSelectedBackgroundColor)
+        parcel.writeInt(editToolUnselectedBackgroundColor)
+        parcel.writeInt(editToolSelectedStrokeColor)
+        parcel.writeInt(editToolUnselectedStrokeColor)
     }
 
     override fun describeContents(): Int = 0

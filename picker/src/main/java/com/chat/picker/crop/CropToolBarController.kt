@@ -5,11 +5,13 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.widget.TextView
+import com.chat.picker.api.PickerStyle
 
 internal class CropToolBarController(
     private val context: Context,
     private val toolButtons: Map<CropImageToolHelper.Tool, TextView>,
     private val actionButtons: List<TextView>,
+    private val style: PickerStyle = PickerStyle(),
 ) {
     private var selectedTool: CropImageToolHelper.Tool? = null
 
@@ -42,7 +44,7 @@ internal class CropToolBarController(
         toolButtons.forEach { (tool, button) ->
             val selected = tool == selectedTool
             button.background = toolButtonBackground(selected)
-            button.setTextColor(if (selected) Color.WHITE else 0xFFD8D8D8.toInt())
+            button.setTextColor(if (selected) style.confirmButtonTextColor else 0xFFD8D8D8.toInt())
             button.typeface = if (selected) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
     }
@@ -51,8 +53,13 @@ internal class CropToolBarController(
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(10f)
-            setColor(if (selected) 0xFF16A34A.toInt() else 0xFF252525.toInt())
-            setStroke(dp(1f).toInt(), if (selected) 0xFF5BE58A.toInt() else 0xFF3A3A3A.toInt())
+            if (selected) {
+                setColor(style.editToolSelectedBackgroundColor)
+                setStroke(dp(1f).toInt(), style.editToolSelectedStrokeColor)
+            } else {
+                setColor(style.editToolUnselectedBackgroundColor)
+                setStroke(dp(1f).toInt(), style.editToolUnselectedStrokeColor)
+            }
         }
     }
 
@@ -60,8 +67,8 @@ internal class CropToolBarController(
         return GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(9f)
-            setColor(0xFF242424.toInt())
-            setStroke(dp(1f).toInt(), 0xFF383838.toInt())
+            setColor(style.editToolUnselectedBackgroundColor)
+            setStroke(dp(1f).toInt(), style.editToolUnselectedStrokeColor)
         }
     }
 

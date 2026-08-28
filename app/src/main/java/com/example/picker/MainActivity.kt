@@ -200,7 +200,10 @@ class MainActivity : AppCompatActivity() {
                         android.graphics.Color.parseColor("#E74C3C") // 茜红色背景
                     manageButtonTextColor =
                         android.graphics.Color.WHITE                      // 白色文字
-
+                    editToolSelectedBackgroundColor = Color.parseColor("#E91E63")
+                    editToolSelectedStrokeColor = Color.parseColor("#F06292")
+                    editToolUnselectedBackgroundColor = Color.parseColor("#424242")
+                    editToolUnselectedStrokeColor = Color.parseColor("#616161")
                     // 7. 状态栏图标风格
                     lightStatusBarIcons = false // 由于顶栏是深色的，使用白色状态栏图标
                 }
@@ -292,6 +295,11 @@ class MainActivity : AppCompatActivity() {
                     confirmButtonBackgroundColor = Color.parseColor("#E91E63")
                     cameraDoneButtonBackgroundColor = Color.parseColor("#E91E63")
                     cameraRetakeButtonBackgroundColor = Color.WHITE
+                    
+                    editToolSelectedBackgroundColor = Color.parseColor("#E91E63")
+                    editToolSelectedStrokeColor = Color.parseColor("#F06292")
+                    editToolUnselectedBackgroundColor = Color.parseColor("#424242")
+                    editToolUnselectedStrokeColor = Color.parseColor("#616161")
                 }
                 .start { render(it) }
         }

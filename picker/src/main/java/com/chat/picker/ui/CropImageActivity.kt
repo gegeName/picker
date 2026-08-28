@@ -196,7 +196,8 @@ internal class CropImageActivity : AppCompatActivity() {
             findViewById(R.id.crop_flip_v),
             findViewById(R.id.crop_reset),
         )
-        toolBarController = CropToolBarController(this, toolButtons, actionButtons)
+        val style = MediaSelector.pendingConfig?.style ?: PickerStyle()
+        toolBarController = CropToolBarController(this, toolButtons, actionButtons, style)
         toolBarController.bind { tool ->
             cropView.setTool(tool)
             if (tool == CropImageToolHelper.Tool.TEXT) showTextInputDialog()
