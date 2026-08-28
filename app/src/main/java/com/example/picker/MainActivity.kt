@@ -2,6 +2,7 @@ package com.example.picker
 
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -168,6 +169,7 @@ class MainActivity : AppCompatActivity() {
                 .type(MediaType.IMAGE_VIDEO)
                 .maxCount(9)
                 .grid(true)
+                .imageEdit(true)
                 .style {
                     // 1. 基础全局主题色（用于选择数字角标、列表遮罩等）
                     themeColor = android.graphics.Color.parseColor("#8E44AD") // 紫色
@@ -285,7 +287,12 @@ class MainActivity : AppCompatActivity() {
                 .grid(true)
                 .spanCount(4)
                 .imageEdit()
-                .imageEditProcessor(ImageProcessStore.activityProcessor(PhotoEditorDemoActivity::class.java))
+                .style {
+                    topBarBackgroundColor = Color.parseColor("#333333")
+                    confirmButtonBackgroundColor = Color.parseColor("#E91E63")
+                    cameraDoneButtonBackgroundColor = Color.parseColor("#E91E63")
+                    cameraRetakeButtonBackgroundColor = Color.WHITE
+                }
                 .start { render(it) }
         }
 

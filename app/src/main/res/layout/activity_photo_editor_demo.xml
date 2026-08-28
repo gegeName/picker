@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/photo_editor_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#111111"
     android:orientation="vertical">
 
     <LinearLayout
+        android:id="@+id/photo_editor_top_bar"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:gravity="center_vertical"
+        android:layout_height="88dp"
+        android:gravity="bottom"
         android:orientation="horizontal"
-        android:paddingHorizontal="12dp">
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="12dp">
 
         <TextView
             android:id="@+id/photo_editor_cancel"
@@ -62,6 +65,7 @@
         app:photo_src="@android:color/transparent" />
 
     <HorizontalScrollView
+        android:id="@+id/photo_editor_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="72dp"
         android:background="#1B1B1B"

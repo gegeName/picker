@@ -4,11 +4,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.chat.picker.api.ImageProcessStore
+import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickerStyle
 import com.chat.picker.model.MediaEntity
 import ja.burhanrashid52.photoeditor.PhotoEditor
 import ja.burhanrashid52.photoeditor.PhotoEditorView
@@ -47,6 +51,9 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
             .setPinchTextScalable(true)
             .setClipSourceImage(true)
             .build()
+
+        val style = MediaSelector.pendingConfig?.style ?: PickerStyle()
+        applyStyle(style)
 
         bindActions()
         loadImage(0)
@@ -95,6 +102,20 @@ class PhotoEditorDemoActivity : AppCompatActivity() {
         findViewById<Button>(R.id.photo_editor_redo).setOnClickListener {
             editor.redo()
         }
+    }
+
+    private fun applyStyle(style: PickerStyle) {
+        findViewById<View>(R.id.photo_editor_root).setBackgroundColor(style.backgroundColor)
+        findViewById<View>(R.id.photo_editor_top_bar).setBackgroundColor(style.topBarBackgroundColor)
+        findViewById<View>(R.id.photo_editor_bottom_bar).setBackgroundColor(style.bottomBarBackgroundColor)
+
+        val buttonTextColor = style.topBarButtonTextColor
+        findViewById<TextView>(R.id.photo_editor_cancel).setTextColor(buttonTextColor)
+        findViewById<TextView>(R.id.photo_editor_title).setTextColor(style.topBarTextColor)
+        findViewById<TextView>(R.id.photo_editor_done_one).setTextColor(buttonTextColor)
+
+        val doneAll = findViewById<TextView>(R.id.photo_editor_done_all)
+        doneAll.setTextColor(style.confirmButtonTextColor)
     }
 
     private fun moveTo(target: Int) {

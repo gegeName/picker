@@ -53,6 +53,7 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -61,6 +62,8 @@ import androidx.core.view.updatePadding
 import com.chat.picker.R
 import com.chat.picker.api.CameraCaptureMode
 import com.chat.picker.api.CameraRecordTrigger
+import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickerStyle
 import com.chat.picker.camera.CameraHelper
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -143,6 +146,10 @@ internal class CameraCaptureActivity : AppCompatActivity() {
         readIntent()
         bindViews()
         applyEdgeToEdgeInsets()
+        
+        val style = MediaSelector.pendingConfig?.style ?: PickerStyle()
+        applyStyle(style)
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 cancelAndFinish()
@@ -309,6 +316,27 @@ internal class CameraCaptureActivity : AppCompatActivity() {
             insets
         }
         ViewCompat.requestApplyInsets(root)
+    }
+
+    private fun applyStyle(style: PickerStyle) {
+        val doneBtn = findViewById<TextView>(R.id.camera_done)
+        val resetBtn = findViewById<TextView>(R.id.camera_reset)
+
+        val doneBg = doneBtn.background
+        if (doneBg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(doneBg.mutate()),
+                style.cameraDoneButtonBackgroundColor
+            )
+        }
+
+        val resetBg = resetBtn.background
+        if (resetBg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(resetBg.mutate()),
+                style.cameraRetakeButtonBackgroundColor
+            )
+        }
     }
 
     private fun startCamera() {

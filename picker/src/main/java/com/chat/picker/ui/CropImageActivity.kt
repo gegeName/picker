@@ -10,8 +10,10 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.drawable.DrawableCompat
 import com.chat.picker.R
 import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickerStyle
 import com.chat.picker.crop.CropBitmapUtils
 import com.chat.picker.crop.CropEditGalleryController
 import com.chat.picker.crop.CropImageToolHelper
@@ -64,6 +66,10 @@ internal class CropImageActivity : AppCompatActivity() {
             topBar = findViewById(R.id.crop_top_bar),
             bottomBar = findViewById(R.id.crop_bottom_bar),
         )
+
+        val style = pendingConfig.style
+        applyStyle(style)
+
         cropView = findViewById(R.id.crop_image)
         cropView.setOnTextEditRequestListener { textIndex, text, rect, color ->
             showTextInputDialog(text, rect, color, textIndex)
@@ -129,6 +135,36 @@ internal class CropImageActivity : AppCompatActivity() {
         }
         findViewById<TextView>(R.id.crop_done).setOnClickListener {
             finishAll()
+        }
+    }
+
+    private fun applyStyle(style: PickerStyle) {
+        findViewById<View>(R.id.crop_root).setBackgroundColor(style.backgroundColor)
+        findViewById<View>(R.id.crop_top_bar).setBackgroundColor(style.topBarBackgroundColor)
+        findViewById<View>(R.id.crop_bottom_bar).setBackgroundColor(style.bottomBarBackgroundColor)
+
+        val buttonTextColor = style.topBarButtonTextColor
+        findViewById<TextView>(R.id.crop_cancel).setTextColor(buttonTextColor)
+        findViewById<TextView>(R.id.crop_title).setTextColor(style.topBarTextColor)
+
+        val confirmBtn = findViewById<TextView>(R.id.crop_done)
+        confirmBtn.setTextColor(style.confirmButtonTextColor)
+        val bg = confirmBtn.background
+        if (bg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(bg.mutate()),
+                style.confirmButtonBackgroundColor
+            )
+        }
+
+        val doneOne = findViewById<TextView>(R.id.crop_done_one)
+        doneOne.setTextColor(style.confirmButtonTextColor)
+        val bgOne = doneOne.background
+        if (bgOne != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(bgOne.mutate()),
+                style.confirmButtonBackgroundColor
+            )
         }
     }
 

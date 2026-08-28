@@ -790,7 +790,7 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
         fun invalidateCache() = MediaSelectorInternal.invalidateCache()
 
 
-        internal val pendingConfig: SelectionConfig?
+        val pendingConfig: SelectionConfig?
             get() = MediaSelectorInternal.pendingConfig
 
         internal fun otherPreviewProvider(): IOtherPreviewProvider? =

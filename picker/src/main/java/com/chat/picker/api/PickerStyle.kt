@@ -48,6 +48,12 @@ class PickerStyle() : Parcelable {
     /** 状态栏图标是否使用深色（若 [topBarBackgroundColor] 较浅，请设为 true） */
     var lightStatusBarIcons: Boolean = false
 
+    /** 相机界面：确认按钮背景色 */
+    var cameraDoneButtonBackgroundColor: Int = Color.parseColor("#FF12B76A")
+
+    /** 相机界面：重拍按钮背景色 */
+    var cameraRetakeButtonBackgroundColor: Int = Color.parseColor("#F2FFFFFF")
+
     fun copy(): PickerStyle {
         val style = PickerStyle()
         style.themeColor = this.themeColor
@@ -63,6 +69,8 @@ class PickerStyle() : Parcelable {
         style.manageButtonBackgroundColor = this.manageButtonBackgroundColor
         style.manageButtonTextColor = this.manageButtonTextColor
         style.lightStatusBarIcons = this.lightStatusBarIcons
+        style.cameraDoneButtonBackgroundColor = this.cameraDoneButtonBackgroundColor
+        style.cameraRetakeButtonBackgroundColor = this.cameraRetakeButtonBackgroundColor
         return style
     }
 
@@ -80,6 +88,8 @@ class PickerStyle() : Parcelable {
         manageButtonBackgroundColor = parcel.readInt()
         manageButtonTextColor = parcel.readInt()
         lightStatusBarIcons = parcel.readByte() != 0.toByte()
+        cameraDoneButtonBackgroundColor = parcel.readInt()
+        cameraRetakeButtonBackgroundColor = parcel.readInt()
     }
 
     override fun writeToParcel(parcel: Parcel, flags: Int) {
@@ -96,6 +106,8 @@ class PickerStyle() : Parcelable {
         parcel.writeInt(manageButtonBackgroundColor)
         parcel.writeInt(manageButtonTextColor)
         parcel.writeByte(if (lightStatusBarIcons) 1 else 0)
+        parcel.writeInt(cameraDoneButtonBackgroundColor)
+        parcel.writeInt(cameraRetakeButtonBackgroundColor)
     }
 
     override fun describeContents(): Int = 0
