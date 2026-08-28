@@ -38,7 +38,9 @@ import com.chat.picker.util.StorageAccess
  */
 class MediaSelector private constructor(private val activity: ComponentActivity) {
 
-    private val cfg = SelectionConfig()
+    private val cfg = SelectionConfig().apply {
+        MediaSelectorInternal.globalStyle?.let { style = it.copy() }
+    }
     private var startWithCamera: Boolean = false
     private var startWithVideoCamera: Boolean = false
 
@@ -418,6 +420,18 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     fun cancelCompressOnBack(enable: Boolean) = apply { cfg.cancelCompressOnBack = enable }
 
     /**
+     * 设置自定义 UI 样式。
+     * @param style 完整的样式对象。
+     */
+    fun style(style: PickerStyle) = apply { cfg.style = style }
+
+    /**
+     * 使用 DSL 方式设置 UI 样式。
+     * @param block 样式设置回调。
+     */
+    fun style(block: PickerStyle.() -> Unit) = apply { cfg.style.apply(block) }
+
+    /**
      * 启动选择流程。
      * @param listener 选择完成后的结果回调；取消选择时内部 picker 不回调。
      */
@@ -713,6 +727,15 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
          */
         fun setVideoCompressor(c: IVideoCompressor?) {
             MediaSelectorInternal.globalVideoCompressor = c
+        }
+
+        /**
+         * 全局设置 UI 样式；传 null 恢复默认。
+         * 设置后，后续所有创建的 [MediaSelector] 实例都将默认使用该样式。
+         * @param style 全局样式配置。
+         */
+        fun setGlobalStyle(style: PickerStyle?) {
+            MediaSelectorInternal.globalStyle = style
         }
 
         /**

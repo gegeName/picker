@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -24,6 +25,7 @@ import com.chat.picker.R
 import com.chat.picker.api.CameraCaptureMode
 import com.chat.picker.api.ImageProcessCallback
 import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickerStyle
 import com.chat.picker.api.SelectionConfig
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.CompressCallback
@@ -294,11 +296,14 @@ class MediaPickerActivity : AppCompatActivity() {
         isGrid = config.startInGrid
 
         setContentView(R.layout.picker_activity_list)
+        applyStyle(config.style)
+
         EdgeToEdge.apply(
             activity = this,
             root = findViewById(R.id.picker_root),
             topBar = findViewById(R.id.picker_top_bar),
             bottomBar = findViewById(R.id.picker_bottom_bar),
+            lightStatusBarIcons = config.style.lightStatusBarIcons,
         )
         recycler = findViewById(R.id.picker_recycler)
         emptyView = findViewById(R.id.picker_empty)
@@ -1195,6 +1200,50 @@ class MediaPickerActivity : AppCompatActivity() {
         }
         setResult(Activity.RESULT_OK, intent)
         finish()
+    }
+
+    private fun applyStyle(style: PickerStyle) {
+        findViewById<View>(R.id.picker_root).setBackgroundColor(style.backgroundColor)
+        findViewById<View>(R.id.picker_top_bar).setBackgroundColor(style.topBarBackgroundColor)
+        findViewById<View>(R.id.picker_bottom_bar).setBackgroundColor(style.bottomBarBackgroundColor)
+
+        val titleView = findViewById<TextView>(R.id.picker_title)
+        titleView.setTextColor(style.topBarTextColor)
+        val titleBg = titleView.background
+        if (titleBg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(titleBg.mutate()),
+                style.titleButtonBackgroundColor
+            )
+        }
+
+        val buttonTextColor = style.topBarButtonTextColor
+        findViewById<TextView>(R.id.picker_btn_cancel).setTextColor(buttonTextColor)
+        findViewById<TextView>(R.id.picker_btn_toggle).setTextColor(buttonTextColor)
+
+        findViewById<TextView>(R.id.picker_preview).setTextColor(style.previewTextColor)
+
+        // 确认按钮
+        val confirmBtn = findViewById<TextView>(R.id.picker_confirm)
+        confirmBtn.setTextColor(style.confirmButtonTextColor)
+        val bg = confirmBtn.background
+        if (bg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(bg.mutate()),
+                style.confirmButtonBackgroundColor
+            )
+        }
+
+        // 部分权限管理按钮
+        val manageBtn = findViewById<TextView>(R.id.picker_partial_manage)
+        manageBtn.setTextColor(style.manageButtonTextColor)
+        val mBg = manageBtn.background
+        if (mBg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(mBg.mutate()),
+                style.manageButtonBackgroundColor
+            )
+        }
     }
 
     companion object {

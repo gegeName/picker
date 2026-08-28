@@ -43,6 +43,9 @@ class SelectionConfig {
      */
     var cancelCompressOnBack: Boolean = false
 
+    /** UI 样式配置 */
+    var style: PickerStyle = PickerStyle()
+
     /** 图片裁剪配置；开启后仅单张图片选择会进入裁剪页。 */
     var cropConfig: CropConfig = CropConfig()
     var cameraCaptureMode: CameraCaptureMode = CameraCaptureMode.PHOTO

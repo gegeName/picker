@@ -66,6 +66,9 @@ internal object MediaSelectorInternal {
     @Volatile
     var globalOtherPreviewProvider: IOtherPreviewProvider? = null
 
+    @Volatile
+    var globalStyle: PickerStyle? = null
+
     private data class CacheKey(
         val type: MediaType,
         val allFilesAccess: Boolean,

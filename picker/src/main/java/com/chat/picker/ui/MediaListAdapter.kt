@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -153,6 +154,19 @@ internal class MediaListAdapter(
             if (idx > 0) {
                 check.text = idx.toString()
                 check.setBackgroundResource(R.drawable.picker_check_selected)
+                val style = MediaSelector.pendingConfig?.style
+                if (style != null) {
+                    val bg = check.background
+                    if (bg != null) {
+                        DrawableCompat.setTint(
+                            DrawableCompat.wrap(bg.mutate()),
+                            style.themeColor
+                        )
+                    }
+                    mask.setBackgroundColor(
+                        (style.themeColor and 0x00FFFFFF) or 0x40000000
+                    )
+                }
                 mask.visibility = View.VISIBLE
             } else {
                 check.text = ""
@@ -201,6 +215,15 @@ internal class MediaListAdapter(
             if (idx > 0) {
                 check.text = idx.toString()
                 check.setBackgroundResource(R.drawable.picker_check_selected)
+                MediaSelector.pendingConfig?.style?.let { style ->
+                    val bg = check.background
+                    if (bg != null) {
+                        DrawableCompat.setTint(
+                            DrawableCompat.wrap(bg.mutate()),
+                            style.themeColor
+                        )
+                    }
+                }
             } else {
                 check.text = ""
                 check.setBackgroundResource(R.drawable.picker_check_unselected)

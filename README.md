@@ -11,6 +11,7 @@ Android 图片、视频、音频和文件选择器，支持多选、预览、拍
 - 网格/列表模式、多选/单选、预选回显
 - 图片和视频全屏预览，支持实况图 (Motion Photo / Live Photo) 长按播放
 - 其他文件可自定义列表封面，也可自定义预览页打开/渲染文档能力
+- UI 样式自定义：支持自定义主题色、背景色、文字颜色、状态栏风格等
 - 拍照、录视频、限时录视频、列表首位相机入口
 - 图片裁剪：自由比例、固定比例、圆形裁剪、输出尺寸和质量控制
 - 图片编辑：多图编辑、裁剪、画笔、文字、马赛克、颜色和画笔大小
@@ -266,6 +267,37 @@ PickIt.with(this)
     .clickRecord()
     .start { result ->
     }
+```
+
+### 自定义 UI 样式
+
+```kotlin
+import android.graphics.Color
+
+PickIt.with(this)
+    .type(MediaType.IMAGE_VIDEO)
+    .style {
+        themeColor = Color.parseColor("#007AFF") // 主题蓝
+        topBarBackgroundColor = Color.WHITE
+        topBarTextColor = Color.BLACK
+        titleButtonBackgroundColor = Color.parseColor("#EFEFEF")
+        backgroundColor = Color.parseColor("#F5F5F5")
+        confirmButtonBackgroundColor = Color.parseColor("#007AFF")
+        confirmButtonTextColor = Color.WHITE
+        lightStatusBarIcons = true // 因为顶部栏是白色的，所以状态栏图标设为深色
+    }
+    .start { result ->
+    }
+```
+
+#### 全局配置样式 (推荐在 Application 中设置)
+
+```kotlin
+PickIt.setGlobalStyle(PickerStyle().apply {
+    themeColor = Color.parseColor("#FF9800")
+    topBarBackgroundColor = Color.parseColor("#3F51B5")
+    topBarTextColor = Color.WHITE
+})
 ```
 
 ### 系统 Photo Picker

@@ -108,6 +108,21 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:text="UI 样式自定义"
+            android:textColor="#222"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_pick_with_style"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="自定义样式（蓝色主题 + 亮色顶栏）" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
             android:text="压缩"
             android:textColor="#222"
             android:textSize="16sp"

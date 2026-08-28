@@ -1,13 +1,12 @@
 package com.example.picker
 
-import android.graphics.BitmapFactory
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.text.SpannableString
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
@@ -42,7 +41,11 @@ class MainActivity : AppCompatActivity() {
         if (hasAllFilesAccess()) {
             action?.invoke()
         } else {
-            Toast.makeText(this, "未开启所有文件访问，内部列表可能看不到 PDF/ZIP/Word", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                this,
+                "未开启所有文件访问，内部列表可能看不到 PDF/ZIP/Word",
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -62,7 +65,7 @@ class MainActivity : AppCompatActivity() {
                 .grid(true)
                 .spanCount(4)
                 .start {
-                    Log.e("Main","长度=${it.size}")
+                    Log.e("Main", "长度=${it.size}")
                     render(it)
                 }
         }
@@ -157,6 +160,49 @@ class MainActivity : AppCompatActivity() {
                     .grid(true)
                     .start { render(it) }
             }
+        }
+
+        findViewById<Button>(R.id.btn_pick_with_style).setOnClickListener {
+            // 演示：设置所有可能的 UI 样式属性，打造一个对比鲜明的自定义主题
+            PickIt.with(this)
+                .type(MediaType.IMAGE_VIDEO)
+                .maxCount(9)
+                .grid(true)
+                .style {
+                    // 1. 基础全局主题色（用于选择数字角标、列表遮罩等）
+                    themeColor = android.graphics.Color.parseColor("#8E44AD") // 紫色
+
+                    // 2. 顶部栏（TopBar）配置
+                    topBarBackgroundColor = android.graphics.Color.parseColor("#2C3E50") // 深蓝背景
+                    topBarTextColor = android.graphics.Color.parseColor("#F1C40F")       // 金色文字（标题）
+                    topBarButtonTextColor =
+                        android.graphics.Color.parseColor("#ECF0F1") // 浅灰文字（取消、切换按钮）
+                    titleButtonBackgroundColor =
+                        android.graphics.Color.parseColor("#34495E") // 标题按钮稍微浅一点的蓝
+
+                    // 3. 页面背景配置
+                    backgroundColor = android.graphics.Color.parseColor("#EBEDEF")      // 浅灰网页色背景
+
+                    // 4. 底部栏（BottomBar）配置
+                    bottomBarBackgroundColor = android.graphics.Color.parseColor("#FFFFFF") // 纯白底栏
+                    previewTextColor = android.graphics.Color.parseColor("#E67E22")      // 橙色预览文字
+
+                    // 5. 确认/完成按钮（Confirm Button）配置
+                    confirmButtonBackgroundColor =
+                        android.graphics.Color.parseColor("#673AB7") // 翡翠绿背景
+                    confirmButtonTextColor =
+                        android.graphics.Color.WHITE                        // 白色文字
+
+                    // 6. 权限管理按钮（Manage Button）配置
+                    manageButtonBackgroundColor =
+                        android.graphics.Color.parseColor("#E74C3C") // 茜红色背景
+                    manageButtonTextColor =
+                        android.graphics.Color.WHITE                      // 白色文字
+
+                    // 7. 状态栏图标风格
+                    lightStatusBarIcons = false // 由于顶栏是深色的，使用白色状态栏图标
+                }
+                .start { render(it) }
         }
 
 
@@ -395,6 +441,7 @@ class MainActivity : AppCompatActivity() {
                     lastPreviewIndex = list.indexOf(image)
                     showLocalImage(image.filePath)
                 }
+
                 video != null -> {
                     lastPreviewIndex = list.indexOf(video)
                     showVideoEntry()
@@ -485,7 +532,8 @@ class MainActivity : AppCompatActivity() {
         showLocalImage(path)
     }
 
-    private fun showRecordedVideo(path: String, uri: android.net.Uri) {        val file = File(path)
+    private fun showRecordedVideo(path: String, uri: android.net.Uri) {
+        val file = File(path)
         val now = System.currentTimeMillis()
         val item = MediaEntity(
             id = -now,

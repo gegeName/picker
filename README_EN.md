@@ -11,6 +11,7 @@ An Android image, video, audio, and file picker. It supports multi-select, previ
 - Grid/list mode, multi-select/single-select, and pre-selected item restore.
 - Full-screen image and video preview, supporting Motion Photo / Live Photo long-press playback.
 - Custom thumbnails for other files, plus custom document rendering/opening in the preview page.
+- UI Customization: support for custom theme color, background color, text color, status bar style, etc.
 - Photo capture, video recording, timed video recording, and camera entry at the first list item.
 - Image crop: free ratio, fixed ratio, circle crop, output size, and quality control.
 - Image editing: multi-image editing, crop, brush, text, mosaic, color, and brush size.
@@ -266,6 +267,36 @@ PickIt.with(this)
     .clickRecord()
     .start { result ->
     }
+```
+
+### Custom UI Style
+
+```kotlin
+import android.graphics.Color
+
+PickIt.with(this)
+    .type(MediaType.IMAGE_VIDEO)
+    .style {
+        themeColor = Color.parseColor("#007AFF") // Theme Blue
+        topBarBackgroundColor = Color.WHITE
+        topBarTextColor = Color.BLACK
+        backgroundColor = Color.parseColor("#F5F5F5")
+        confirmButtonBackgroundColor = Color.parseColor("#007AFF")
+        confirmButtonTextColor = Color.WHITE
+        lightStatusBarIcons = true // Set to true if the top bar is light-colored
+    }
+    .start { result ->
+    }
+```
+
+#### Global Style Configuration (Recommended in Application)
+
+```kotlin
+PickIt.setGlobalStyle(PickerStyle().apply {
+    themeColor = Color.parseColor("#FF9800")
+    topBarBackgroundColor = Color.parseColor("#3F51B5")
+    topBarTextColor = Color.WHITE
+})
 ```
 
 ### System Photo Picker

@@ -12,9 +12,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.doOnPreDraw
 import androidx.viewpager2.widget.ViewPager2
 import com.chat.picker.R
+import com.chat.picker.api.MediaSelector
+import com.chat.picker.api.PickerStyle
 import com.chat.picker.model.MediaEntity
 import com.chat.picker.util.EdgeToEdge
 
@@ -53,6 +56,8 @@ class MediaPreviewActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.picker_activity_preview)
+        val style = MediaSelector.pendingConfig?.style ?: PickerStyle()
+
         root = findViewById(R.id.preview_root)
         topBar = findViewById(R.id.preview_top_bar)
         bottomBar = findViewById(R.id.preview_bottom_bar)
@@ -63,6 +68,7 @@ class MediaPreviewActivity : AppCompatActivity() {
             root = root,
             topBar = topBar,
             bottomBar = bottomBar,
+            lightStatusBarIcons = style.lightStatusBarIcons,
         )
 
         previewId = intent.getStringExtra(PreviewBridge.EXTRA_PREVIEW_ID)
@@ -79,6 +85,8 @@ class MediaPreviewActivity : AppCompatActivity() {
         title = findViewById(R.id.preview_title)
         check = findViewById(R.id.preview_check)
         confirm = findViewById(R.id.preview_confirm)
+
+        applyStyle(style)
         Selection.max = maxCount
 
         val previewAdapter = MediaPreviewAdapter()
@@ -129,6 +137,14 @@ class MediaPreviewActivity : AppCompatActivity() {
         if (idx > 0) {
             check.text = idx.toString()
             check.setBackgroundResource(R.drawable.picker_check_selected)
+            val bg = check.background
+            if (bg != null) {
+                val style = MediaSelector.pendingConfig?.style ?: PickerStyle()
+                DrawableCompat.setTint(
+                    DrawableCompat.wrap(bg.mutate()),
+                    style.themeColor
+                )
+            }
         } else {
             check.text = ""
             check.setBackgroundResource(R.drawable.picker_check_unselected)
@@ -296,6 +312,24 @@ class MediaPreviewActivity : AppCompatActivity() {
     private fun finishAfterExitAnimation() {
         root.visibility = View.INVISIBLE
         finishWithoutAnimation()
+    }
+
+    private fun applyStyle(style: PickerStyle) {
+        topBar.setBackgroundColor(style.topBarBackgroundColor)
+        bottomBar.setBackgroundColor(style.topBarBackgroundColor)
+
+        title.setTextColor(style.topBarTextColor)
+        findViewById<TextView>(R.id.preview_back).setTextColor(style.topBarButtonTextColor)
+
+        val confirmBtn = findViewById<TextView>(R.id.preview_confirm)
+        confirmBtn.setTextColor(style.confirmButtonTextColor)
+        val bg = confirmBtn.background
+        if (bg != null) {
+            DrawableCompat.setTint(
+                DrawableCompat.wrap(bg.mutate()),
+                style.confirmButtonBackgroundColor
+            )
+        }
     }
 
     override fun onDestroy() {
