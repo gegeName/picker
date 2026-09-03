@@ -47,16 +47,52 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
     /**
      * 设置选择的媒体类型，如图片、视频、音频或混合类型。
      * @param type 媒体类型，决定默认查询哪个媒体库。
+     * @param realtimeFetch 是否开启实时获取模式；null 时使用当前配置。
      */
-    fun type(type: MediaType) = apply {
-        cfg.filter = MediaFilter.Builder(type).build()
+    @JvmOverloads
+    fun type(type: MediaType, realtimeFetch: Boolean? = null) = apply {
+        if (realtimeFetch != null) {
+            cfg.realtimeFetch = realtimeFetch
+        }
+        cfg.filter = MediaFilter.Builder(type)
+            .realtimeFetch(cfg.realtimeFetch)
+            .apply {
+                val current = cfg.filter
+                if (current.mimeTypes.isNotEmpty()) {
+                    addMimeType(*current.mimeTypes.toTypedArray())
+                }
+                if (current.minSizeBytes > 0) {
+                    minSizeBytes(current.minSizeBytes)
+                }
+                if (current.maxDurationMs != Long.MAX_VALUE) {
+                    maxDurationMs(current.maxDurationMs)
+                }
+                if (current.extraSelection != null) {
+                    extraSelection(current.extraSelection, *(current.extraArgs ?: emptyArray()))
+                }
+            }
+            .build()
     }
 
     /**
      * 传入完整过滤条件，可精确控制媒体类型、MIME 类型和额外查询条件。
      * @param filter 已构建好的过滤条件。
      */
-    fun filter(filter: MediaFilter) = apply { cfg.filter = filter }
+    fun filter(filter: MediaFilter) = apply {
+        cfg.filter = if (cfg.realtimeFetch && !filter.realtimeFetch) {
+            MediaFilter.Builder(filter.type).apply {
+                addMimeType(*filter.mimeTypes.toTypedArray())
+                minSizeBytes(filter.minSizeBytes)
+                maxDurationMs(filter.maxDurationMs)
+                if (filter.extraSelection != null) {
+                    extraSelection(filter.extraSelection, *(filter.extraArgs ?: emptyArray()))
+                }
+                realtimeFetch(true)
+            }.build()
+        } else {
+            filter
+        }
+    }
 
     /**
      * 使用 DSL 构建过滤条件。
@@ -64,7 +100,10 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
      * @param block 过滤条件构建回调，可添加 MIME 类型、大小、时长和额外查询条件。
      */
     fun filter(type: MediaType, block: MediaFilter.Builder.() -> Unit = {}) = apply {
-        cfg.filter = MediaFilter.Builder(type).apply(block).build()
+        cfg.filter = MediaFilter.Builder(type).apply {
+            realtimeFetch(cfg.realtimeFetch)
+            block()
+        }.build()
     }
 
     /**

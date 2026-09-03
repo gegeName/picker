@@ -14,6 +14,7 @@ class MediaFilter private constructor(
     val extraArgs: Array<String>?,
     val minSizeBytes: Long,
     val maxDurationMs: Long,
+    val realtimeFetch: Boolean = false,
 ) {
     class Builder(private val type: MediaType) {
         private val mimes = mutableListOf<String>()
@@ -21,6 +22,7 @@ class MediaFilter private constructor(
         private var args: Array<String>? = null
         private var minSize: Long = 0
         private var maxDuration: Long = Long.MAX_VALUE
+        private var realtime: Boolean = false
 
         fun addMimeType(vararg mimeType: String) = apply { mimes.addAll(mimeType) }
 
@@ -31,9 +33,10 @@ class MediaFilter private constructor(
 
         fun minSizeBytes(bytes: Long) = apply { minSize = bytes }
         fun maxDurationMs(ms: Long) = apply { maxDuration = ms }
+        fun realtimeFetch(enable: Boolean = true) = apply { realtime = enable }
 
         fun build(): MediaFilter =
-            MediaFilter(type, mimes.toList(), extra, args, minSize, maxDuration)
+            MediaFilter(type, mimes.toList(), extra, args, minSize, maxDuration, realtime)
     }
 
     companion object {

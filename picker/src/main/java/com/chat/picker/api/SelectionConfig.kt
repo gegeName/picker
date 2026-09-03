@@ -43,6 +43,14 @@ class SelectionConfig {
      */
     var cancelCompressOnBack: Boolean = false
 
+    /**
+     * 是否开启实时获取模式。
+     * 默认 false。开启后规避预加载缓存，在打开列表与刷新时实时查询媒体库，
+     * 并主动扫描 DCIM/Camera/Pictures/Movies 等系统公共目录下的最新拍摄文件，
+     * 解决手机自带相机刚拍摄的照片/视频因 MediaStore 索引延迟导致相册不显示的问题。
+     */
+    var realtimeFetch: Boolean = false
+
     /** UI 样式配置 */
     var style: PickerStyle = PickerStyle()
 

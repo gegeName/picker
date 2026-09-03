@@ -36,6 +36,7 @@ import com.chat.picker.data.MediaFolder
 import com.chat.picker.data.MediaRepository
 import com.chat.picker.loader.ImageLoader
 import com.chat.picker.model.MediaEntity
+import com.chat.picker.model.MediaFilter
 import com.chat.picker.model.MediaType
 import com.chat.picker.util.EdgeToEdge
 import com.chat.picker.util.PickerLog
@@ -507,8 +508,11 @@ class MediaPickerActivity : AppCompatActivity() {
         seedPreSelectedAtTop()
         submitMediaList()
 
+        if (config.realtimeFetch) {
+            MediaSelector.invalidateCache()
+        }
         val isCanonical = config.filter.mimeTypes.isEmpty() && config.filter.extraSelection == null
-        val cached = MediaSelector.cached(config.filter.type)
+        val cached = if (config.realtimeFetch) null else MediaSelector.cached(config.filter.type)
         if (cached != null && isCanonical) {
             appendPage(cached, fromCache = true)
             return
@@ -516,10 +520,12 @@ class MediaPickerActivity : AppCompatActivity() {
 
         showLoading(getString(R.string.picker_loading_files), firstLoad = true)
         loadPageInternal(isCanonical, isFirstPage = true, loadToken = loadToken)
+        loadFolders()
     }
 
     private fun loadFolders() {
-        MediaRepository.queryFoldersAsync(applicationContext, config.filter) { folders ->
+        val filterToUse = buildFilterForQuery()
+        MediaRepository.queryFoldersAsync(applicationContext, filterToUse) { folders ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 mediaFolders = folders
@@ -546,19 +552,20 @@ class MediaPickerActivity : AppCompatActivity() {
     private fun loadPageInternal(isCanonical: Boolean, isFirstPage: Boolean, loadToken: Int) {
         isLoadingPage = true
         val offset = currentOffset
+        val filterToUse = buildFilterForQuery()
         val streaming = isFirstPage &&
-            config.filter.extraSelection == null &&
+            filterToUse.extraSelection == null &&
             StorageAccess.hasAllFilesAccess()
         if (streaming) {
             var firstBatch = true
             MediaRepository.queryAsync(
-                applicationContext, config.filter,
+                applicationContext, filterToUse,
                 onPage = { page ->
                     if (page.isEmpty()) return@queryAsync
                     runOnUiThread {
                         if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
                         if (firstBatch) {
-                            if (isCanonical) MediaSelector.putCache(config.filter.type, page)
+                            if (isCanonical && !config.realtimeFetch) MediaSelector.putCache(config.filter.type, page)
                             dismissLoading()
                             firstBatch = false
                         }
@@ -579,12 +586,12 @@ class MediaPickerActivity : AppCompatActivity() {
             footerAdapter?.setState(FooterAdapter.State.LOADING)
         }
         MediaRepository.queryAsync(
-            applicationContext, config.filter,
+            applicationContext, filterToUse,
             offset = offset, limit = pageSize,
         ) { list ->
             runOnUiThread {
                 if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
-                if (isFirstPage && isCanonical && list.isNotEmpty()) {
+                if (isFirstPage && isCanonical && list.isNotEmpty() && !config.realtimeFetch) {
                     MediaSelector.putCache(config.filter.type, list)
                 }
                 appendPage(list, fromCache = false)
@@ -602,6 +609,8 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun finishStream() {
+        Selection.all.sortByDescending { it.dateAddedSec }
+        submitMediaList(scrollToTop = false)
         dismissLoading()
         hasMore = false
         isLoadingPage = false
@@ -651,10 +660,11 @@ class MediaPickerActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.picker_no_media_permission, Toast.LENGTH_SHORT).show()
             return
         }
+        val filterToUse = buildFilterForQuery()
         val folders = mediaFolders
-        if (folders.isEmpty()) {
+        if (config.realtimeFetch || folders.isEmpty()) {
             showLoading(getString(R.string.picker_loading_files), firstLoad = false)
-            MediaRepository.queryFoldersAsync(applicationContext, config.filter) { loaded ->
+            MediaRepository.queryFoldersAsync(applicationContext, filterToUse) { loaded ->
                 runOnUiThread {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     dismissLoading()
@@ -762,6 +772,23 @@ class MediaPickerActivity : AppCompatActivity() {
             ?.ifBlank { getString(R.string.picker_folder_unknown) }
             ?: getString(R.string.picker_folder_all)
         titleView.text = getString(R.string.picker_folder_title, name)
+    }
+
+    private fun buildFilterForQuery(): MediaFilter {
+        return if (config.realtimeFetch && !config.filter.realtimeFetch) {
+            MediaFilter.Builder(config.filter.type).apply {
+                addMimeType(*config.filter.mimeTypes.toTypedArray())
+                minSizeBytes(config.filter.minSizeBytes)
+                maxDurationMs(config.filter.maxDurationMs)
+                val extraSel = config.filter.extraSelection
+                if (extraSel != null) {
+                    extraSelection(extraSel, *(config.filter.extraArgs ?: emptyArray()))
+                }
+                realtimeFetch(true)
+            }.build()
+        } else {
+            config.filter
+        }
     }
 
     private fun dp(value: Int): Int =

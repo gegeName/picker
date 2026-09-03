@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -123,8 +124,17 @@ object MediaRepository {
         offset: Int = 0,
         limit: Int = Int.MAX_VALUE,
     ): List<MediaEntity> {
+        if (filter.realtimeFetch) {
+            invalidateFileScanCache()
+        }
+
         if (StorageAccess.hasAllFilesAccess() && filter.extraSelection == null) {
-            return scanExternalFiles(context, filter, offset, limit)
+            val list = scanExternalFiles(context, filter, offset, limit)
+            return if (filter.realtimeFetch && offset == 0) {
+                mergeRealtimeMedia(context, filter, list, limit)
+            } else {
+                list
+            }
         }
 
         val uri: Uri = filter.type.contentUri()
@@ -147,6 +157,7 @@ object MediaRepository {
             val mimeIdx = c.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
             val sizeIdx = c.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
             val dateIdx = c.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED)
+            val dateModIdx = c.optionalIndex(MediaStore.MediaColumns.DATE_MODIFIED)
             val durIdx = c.optionalIndex(MediaStore.MediaColumns.DURATION)
             val wIdx = c.optionalIndex(MediaStore.MediaColumns.WIDTH)
             val hIdx = c.optionalIndex(MediaStore.MediaColumns.HEIGHT)
@@ -182,6 +193,9 @@ object MediaRepository {
                 val filePath = if (dataIdx >= 0) c.getString(dataIdx) else null
                 val relativePath = if (relativePathIdx >= 0) c.getString(relativePathIdx) else null
                 val folder = resolveFolder(filePath, relativePath)
+                val dateAddedSec = c.getLong(dateIdx)
+                val dateModifiedSec = if (dateModIdx >= 0) c.getLong(dateModIdx) else 0L
+                val effectiveDateSec = if (dateModifiedSec > 0L) maxOf(dateAddedSec, dateModifiedSec) else dateAddedSec
                 list += MediaEntity(
                     id = id,
                     uri = itemUri,
@@ -190,7 +204,7 @@ object MediaRepository {
                     mimeType = mime,
                     sizeBytes = c.getLong(sizeIdx),
                     durationMs = if (durIdx >= 0) c.getLong(durIdx) else 0L,
-                    dateAddedSec = c.getLong(dateIdx),
+                    dateAddedSec = effectiveDateSec,
                     width = if (wIdx >= 0) c.getInt(wIdx) else 0,
                     height = if (hIdx >= 0) c.getInt(hIdx) else 0,
                     mediaType = resolvedType,
@@ -205,7 +219,100 @@ object MediaRepository {
                 )
             }
         }
-        return list
+        return if (filter.realtimeFetch && offset == 0) {
+            mergeRealtimeMedia(context, filter, list, limit)
+        } else {
+            list
+        }
+    }
+
+    private fun mergeRealtimeMedia(
+        context: Context,
+        filter: MediaFilter,
+        baseList: List<MediaEntity>,
+        limit: Int,
+    ): List<MediaEntity> {
+        val existingPaths = HashSet<String>()
+        val existingUris = HashSet<String>()
+        baseList.forEach {
+            if (!it.filePath.isNullOrEmpty()) existingPaths.add(it.filePath)
+            val uriStr = it.uri.toString()
+            if (uriStr.isNotEmpty()) existingUris.add(uriStr)
+        }
+
+        val realtimeItems = scanRealtimePublicMedia(context, filter, existingPaths, existingUris)
+        if (realtimeItems.isEmpty()) return baseList
+
+        val merged = (realtimeItems + baseList).sortedByDescending { it.dateAddedSec }
+        return if (limit == Int.MAX_VALUE) merged else merged.take(limit)
+    }
+
+    private fun scanRealtimePublicMedia(
+        context: Context,
+        filter: MediaFilter,
+        existingPaths: Set<String>,
+        existingUris: Set<String>,
+    ): List<MediaEntity> {
+        val publicDirs = mutableListOf<File>()
+        fun addDir(f: File?) {
+            if (f != null && f.exists() && f.isDirectory && f.canRead()) {
+                publicDirs.add(f)
+            }
+        }
+        @Suppress("DEPRECATION")
+        runCatching {
+            addDir(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM))
+            addDir(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera"))
+            addDir(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES))
+            addDir(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES))
+            addDir(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS))
+        }
+
+        val scanPaths = mutableListOf<String>()
+        val realtimeCandidates = mutableListOf<FileCandidate>()
+        val visited = HashSet<String>()
+
+        fun checkAndAdd(file: File) {
+            if (!file.isFile || !file.canRead() || file.name.startsWith(".")) return
+            val abs = file.absolutePath
+            val canonical = runCatching { file.canonicalPath }.getOrDefault(abs)
+            if (!visited.add(abs) && !visited.add(canonical)) return
+            if (existingPaths.contains(abs) || existingPaths.contains(canonical)) return
+            val fileUri = android.net.Uri.fromFile(file).toString()
+            if (existingUris.contains(fileUri)) return
+
+            val candidate = toCandidate(file, filter) ?: return
+            realtimeCandidates.add(candidate)
+            scanPaths.add(abs)
+        }
+
+        val dirsToScan = publicDirs.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
+        for (dir in dirsToScan) {
+            val children = runCatching { dir.listFiles() }.getOrNull() ?: continue
+            for (child in children) {
+                if (child.isDirectory && child.canRead() && !child.name.startsWith(".")) {
+                    val subFiles = runCatching { child.listFiles() }.getOrNull() ?: continue
+                    for (f in subFiles) {
+                        checkAndAdd(f)
+                    }
+                } else {
+                    checkAndAdd(child)
+                }
+            }
+        }
+
+        if (scanPaths.isNotEmpty()) {
+            runCatching {
+                MediaScannerConnection.scanFile(
+                    context,
+                    scanPaths.toTypedArray(),
+                    null,
+                    null,
+                )
+            }
+        }
+
+        return realtimeCandidates.map { it.toEntity() }
     }
 
     private fun scanExternalFiles(
@@ -317,6 +424,7 @@ object MediaRepository {
     }
 
     private fun volumeRoots(context: Context): List<File> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return emptyList()
         val manager = context.getSystemService(Context.STORAGE_SERVICE) as? StorageManager
             ?: return emptyList()
         return runCatching {
@@ -362,7 +470,15 @@ object MediaRepository {
             mime = mime,
             mediaType = mediaType,
             sizeBytes = size,
-            modifiedSec = (file.lastModified() / 1000L).coerceAtLeast(0L),
+            modifiedSec = run {
+                val lastModMs = file.lastModified()
+                val currentMs = System.currentTimeMillis()
+                if (lastModMs > 0L && lastModMs <= currentMs) {
+                    lastModMs / 1000L
+                } else {
+                    currentMs / 1000L
+                }
+            },
             knownDurationMs = knownDurationMs,
         )
     }
@@ -535,20 +651,19 @@ object MediaRepository {
         offset: Int,
         limit: Int,
     ): Cursor? {
-        val baseSort = "${MediaStore.MediaColumns.DATE_ADDED} DESC"
+        val baseSort = "COALESCE(CASE WHEN ${MediaStore.MediaColumns.DATE_MODIFIED} > 0 THEN GREATEST(${MediaStore.MediaColumns.DATE_ADDED}, ${MediaStore.MediaColumns.DATE_MODIFIED}) ELSE ${MediaStore.MediaColumns.DATE_ADDED} END, ${MediaStore.MediaColumns.DATE_ADDED}) DESC, ${MediaStore.MediaColumns._ID} DESC"
         val paged = limit != Int.MAX_VALUE
         return if (paged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val queryArgs = Bundle().apply {
-                putStringArray(
-                    ContentResolver.QUERY_ARG_SORT_COLUMNS,
-                    arrayOf(MediaStore.MediaColumns.DATE_ADDED),
-                )
-                putInt(
-                    ContentResolver.QUERY_ARG_SORT_DIRECTION,
-                    ContentResolver.QUERY_SORT_DIRECTION_DESCENDING,
+                putString(
+                    ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
+                    baseSort,
                 )
                 putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                }
                 selection?.let { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, it) }
                 args?.let { putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, it) }
             }
@@ -567,6 +682,7 @@ object MediaRepository {
             MediaStore.MediaColumns.MIME_TYPE,
             MediaStore.MediaColumns.SIZE,
             MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.DATE_MODIFIED,
         )
         if (type == MediaType.VIDEO || type == MediaType.AUDIO ||
             type == MediaType.IMAGE_VIDEO || type == MediaType.ALL
