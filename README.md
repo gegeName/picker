@@ -137,6 +137,33 @@ dependencies {
 
 ## 快速使用案例
 
+### 选择图片（实时扫描模式）
+
+实时扫描模式确保新拍的照片立即出现在列表中，适合拍照后立即选择的场景：
+
+```kotlin
+PickIt.with(this)
+    .type(MediaType.IMAGE, realtimeFetch = true)
+    .maxCount(9)
+    .grid(true)
+    .spanCount(4)
+    .start { result ->
+        // result: List<MediaEntity>
+    }
+```
+
+或使用 DSL 方式：
+
+```kotlin
+PickIt.with(this)
+    .filter(MediaType.IMAGE) {
+        realtimeFetch(true)
+    }
+    .maxCount(9)
+    .start { result ->
+    }
+```
+
 ### 选择图片
 
 ```kotlin
@@ -355,6 +382,7 @@ PickIt.pickFiles(
 | API | 说明 |
 | --- | --- |
 | `type(type)` | 设置选择的媒体类型 |
+| `type(type, realtimeFetch)` | 设置媒体类型并控制是否开启实时扫描 |
 | `filter(filter)` | 传入完整 `MediaFilter` |
 | `filter(type) { ... }` | 使用 DSL 构建筛选条件 |
 | `maxCount(n)` | 最大选择数量，最小按 1 处理 |
@@ -362,7 +390,11 @@ PickIt.pickFiles(
 | `spanCount(n)` | 网格列数，最小按 2 处理 |
 | `multiSelect(enable)` | 是否允许多选；`false` 为单选 |
 | `preSelected(list)` | 打开 picker 时自动复选已选项 |
-| `showFirstLoading(enable)` | 首次加载是否显示 loading 弹窗 |
+| `showFirstLoading(enable)` | 首次加载是否显示 loading 弹窗（默认 `true`） |
+
+**重要变更**：
+- `type()` 方法在切换媒体类型时，**不再继承**旧类型的 MIME 类型过滤器和 `extraSelection` SQL 条件，只保留通用的 `minSizeBytes` 和 `maxDurationMs`。这避免了类型切换时查询冲突（例如从 IMAGE 切换到 VIDEO 时继承 `image/png` 导致查询结果为空）。
+- `showFirstLoading` 默认值改为 `true`，确保实时扫描模式下有明确的加载反馈。
 
 ### MediaFilter
 
@@ -373,7 +405,17 @@ PickIt.pickFiles(
 | `extraSelection(selection, vararg args)` | 添加高级 MediaStore SQL 条件 |
 | `minSizeBytes(bytes)` | 设置最小文件体积 |
 | `maxDurationMs(ms)` | 设置最大媒体时长 |
+| `realtimeFetch(enable)` | 开启实时扫描模式，强制重新扫描文件系统，不使用缓存 |
 | `build()` | 构建 `MediaFilter` |
+
+**实时扫描模式说明**：
+
+当开启 `realtimeFetch(true)` 时，框架会跳过缓存，直接扫描文件系统并合并 MediaStore 查询结果。适用于以下场景：
+- 拍照后立即选择图片，需要确保新拍的照片出现在列表中
+- MediaStore 索引延迟，新文件暂未入库
+- 需要实时感知文件系统变化
+
+注意：实时扫描会增加首次加载耗时，建议按需开启。
 
 ### 返回数据 MediaEntity
 
@@ -559,6 +601,8 @@ PickIt.pickFiles(
 - 压缩器自定义实现中必须调用 `callback.onSuccess()` 或 `callback.onError()`。
 - 圆形裁剪会强制输出 PNG，以保留透明区域。
 - 使用第三方裁剪/编辑时，第三方页面必须通过 `ImageProcessStore.success/cancel/error` 回传结果。
+- **实时扫描模式**（`realtimeFetch = true`）会跳过缓存，强制重新扫描文件系统，适合需要立即看到新文件的场景，但会增加首次加载耗时。
+- **切换媒体类型**时（调用 `type()` 方法），框架不再继承旧类型的 MIME 类型和自定义 SQL 条件，避免查询冲突。只保留通用的文件大小和时长限制。
 
 ## 许可证
 

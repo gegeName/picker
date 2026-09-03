@@ -137,6 +137,33 @@ Choose by scenario:
 
 ## Quick Start
 
+### Select Images (Realtime Fetch Mode)
+
+Realtime fetch mode ensures newly captured photos appear immediately in the list, suitable for post-capture selection scenarios:
+
+```kotlin
+PickIt.with(this)
+    .type(MediaType.IMAGE, realtimeFetch = true)
+    .maxCount(9)
+    .grid(true)
+    .spanCount(4)
+    .start { result ->
+        // result: List<MediaEntity>
+    }
+```
+
+Or using DSL:
+
+```kotlin
+PickIt.with(this)
+    .filter(MediaType.IMAGE) {
+        realtimeFetch(true)
+    }
+    .maxCount(9)
+    .start { result ->
+    }
+```
+
 ### Select Images
 
 ```kotlin
@@ -354,6 +381,7 @@ Canceling selection does not trigger the `start` callback.
 | API | Description |
 | --- | --- |
 | `type(type)` | Set selected media type |
+| `type(type, realtimeFetch)` | Set media type and control realtime fetch mode |
 | `filter(filter)` | Pass a complete `MediaFilter` |
 | `filter(type) { ... }` | Build filter conditions with DSL |
 | `maxCount(n)` | Maximum selected count; minimum is 1 |
@@ -361,7 +389,11 @@ Canceling selection does not trigger the `start` callback.
 | `spanCount(n)` | Grid column count; minimum is 2 |
 | `multiSelect(enable)` | Enable multi-select; `false` means single-select |
 | `preSelected(list)` | Restore selected items when opening picker |
-| `showFirstLoading(enable)` | Show loading dialog during first load |
+| `showFirstLoading(enable)` | Show loading dialog during first load (default `true`) |
+
+**Breaking Changes**:
+- When switching media types via `type()`, the framework **no longer inherits** the old type's MIME filters or `extraSelection` SQL conditions. Only generic `minSizeBytes` and `maxDurationMs` are preserved. This avoids query conflicts (e.g., switching from IMAGE to VIDEO while inheriting `image/png` would return no results).
+- `showFirstLoading` now defaults to `true`, ensuring clear loading feedback in realtime fetch mode.
 
 ### MediaFilter
 
@@ -372,7 +404,17 @@ Canceling selection does not trigger the `start` callback.
 | `extraSelection(selection, vararg args)` | Add advanced MediaStore SQL conditions |
 | `minSizeBytes(bytes)` | Set minimum file size |
 | `maxDurationMs(ms)` | Set maximum media duration |
+| `realtimeFetch(enable)` | Enable realtime scan mode; forces filesystem rescan and bypasses cache |
 | `build()` | Build `MediaFilter` |
+
+**Realtime Fetch Mode**:
+
+When `realtimeFetch(true)` is enabled, the framework bypasses cache and scans the filesystem directly, merging results with MediaStore queries. This is useful for:
+- Selecting images immediately after photo capture, ensuring newly captured photos appear in the list
+- Working around MediaStore indexing delays when new files are not yet indexed
+- Real-time awareness of filesystem changes
+
+Note: Realtime scanning increases initial load time. Enable only when needed.
 
 ### Result Data: MediaEntity
 
@@ -556,6 +598,8 @@ After taking photos, saving new files, or external media changes, call `invalida
 - Custom compressors must call `callback.onSuccess()` or `callback.onError()`.
 - Circle crop forces PNG output to preserve transparency.
 - Third-party crop/edit pages must return results through `ImageProcessStore.success/cancel/error`.
+- **Realtime fetch mode** (`realtimeFetch = true`) bypasses cache and forces filesystem rescan. It's suitable for scenarios requiring immediate visibility of new files, but increases initial load time.
+- **When switching media types** (calling `type()` method), the framework no longer inherits the old type's MIME filters and custom SQL conditions to avoid query conflicts. Only generic file size and duration limits are preserved.
 
 ## License
 
