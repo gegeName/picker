@@ -10,7 +10,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
 import android.widget.Toast
@@ -42,9 +41,9 @@ import com.chat.picker.util.EdgeToEdge
 import com.chat.picker.util.PickerLog
 import com.chat.picker.util.StorageAccess
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -92,8 +91,8 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun shouldShowCamera(): Boolean =
         config.showCameraEntry && isGrid &&
-            config.filter.type != MediaType.AUDIO &&
-            currentFolder == null
+                config.filter.type != MediaType.AUDIO &&
+                currentFolder == null
 
     private fun cameraOffset(): Int = if (shouldShowCamera()) 1 else 0
 
@@ -226,12 +225,12 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun shouldRecordVideoFromCameraEntry(): Boolean =
         config.cameraCaptureMode == CameraCaptureMode.VIDEO ||
-            config.filter.type == MediaType.VIDEO
+                config.filter.type == MediaType.VIDEO
 
     private fun insertCapturedMedia(entity: MediaEntity) {
         PickerLog.d(
             "insertCapturedMedia id=${entity.id} uri=${entity.uri} path=${entity.filePath} " +
-                "all.size(before)=${Selection.all.size} adapter.itemCount=${adapter?.itemCount}"
+                    "all.size(before)=${Selection.all.size} adapter.itemCount=${adapter?.itemCount}"
         )
         if (!loadedKeys.add(keyOf(entity))) {
             PickerLog.w("key already loaded, skip")
@@ -272,6 +271,7 @@ class MediaPickerActivity : AppCompatActivity() {
             val items = result.data?.getParcelableArrayListExtra<MediaEntity>(
                 CropImageActivity.EXTRA_RESULTS
             )
+
             @Suppress("DEPRECATION")
             val item = result.data?.getParcelableExtra<MediaEntity>(
                 CropImageActivity.EXTRA_RESULT
@@ -280,9 +280,11 @@ class MediaPickerActivity : AppCompatActivity() {
                 !items.isNullOrEmpty() -> finishAfterCrop(
                     preserveOriginalFilePaths(items, Selection.selected.toList())
                 )
+
                 item != null -> finishAfterCrop(
                     preserveOriginalFilePaths(listOf(item), Selection.selected.toList())
                 )
+
                 else -> finishAfterCrop(Selection.selected.toList())
             }
         }
@@ -452,7 +454,8 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun onCheckToggle(item: MediaEntity) {
-        val result = if (effectiveMaxCount == 1) Selection.selectSingle(item) else Selection.toggle(item)
+        val result =
+            if (effectiveMaxCount == 1) Selection.selectSingle(item) else Selection.toggle(item)
         if (!result.accepted) {
             Toast.makeText(
                 this, getString(R.string.picker_max_select, effectiveMaxCount), Toast.LENGTH_SHORT
@@ -554,8 +557,8 @@ class MediaPickerActivity : AppCompatActivity() {
         val offset = currentOffset
         val filterToUse = buildFilterForQuery()
         val streaming = isFirstPage &&
-            filterToUse.extraSelection == null &&
-            StorageAccess.hasAllFilesAccess()
+                filterToUse.extraSelection == null &&
+                StorageAccess.hasAllFilesAccess()
         if (streaming) {
             var firstBatch = true
             MediaRepository.queryAsync(
@@ -565,7 +568,10 @@ class MediaPickerActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (loadToken != dataLoadVersion || currentFolder != null) return@runOnUiThread
                         if (firstBatch) {
-                            if (isCanonical && !config.realtimeFetch) MediaSelector.putCache(config.filter.type, page)
+                            if (isCanonical && !config.realtimeFetch) MediaSelector.putCache(
+                                config.filter.type,
+                                page
+                            )
                             dismissLoading()
                             firstBatch = false
                         }
@@ -975,8 +981,8 @@ class MediaPickerActivity : AppCompatActivity() {
 
     private fun shouldCrop(list: List<MediaEntity>): Boolean =
         list.isNotEmpty() &&
-            list.all { it.isImage } &&
-            (config.imageEditEnabled || (config.cropConfig.enabled && list.size == 1))
+                list.all { it.isImage } &&
+                (config.imageEditEnabled || (config.cropConfig.enabled && list.size == 1))
 
     private fun openCrop(items: List<MediaEntity>) {
         val processor = if (config.imageEditEnabled) {
@@ -1055,7 +1061,7 @@ class MediaPickerActivity : AppCompatActivity() {
 
         val needCompress = list.any { item ->
             (item.isImage && imageC != null && imageC.needsCompress(item)) ||
-                (item.isVideo && videoC != null && videoC.needsCompress(item))
+                    (item.isVideo && videoC != null && videoC.needsCompress(item))
         }
         if (!needCompress) {
             deliverResult(list); return
@@ -1176,8 +1182,10 @@ class MediaPickerActivity : AppCompatActivity() {
                     when {
                         compressTypes[i] == COMPRESS_IMAGE && imageC != null ->
                             imageC.compress(applicationContext, item, callback)
+
                         compressTypes[i] == COMPRESS_VIDEO && videoC != null ->
                             videoC.compress(applicationContext, item, callback)
+
                         else -> callback.onSuccess(item)
                     }
                 } catch (e: Throwable) {

@@ -6,6 +6,12 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.fragment.app.Fragment
 import com.chat.picker.R
+import com.chat.picker.api.MediaSelector.Companion.pickFiles
+import com.chat.picker.api.MediaSelector.Companion.setImageCompressor
+import com.chat.picker.api.MediaSelector.Companion.setVideoCompressor
+import com.chat.picker.api.MediaSelector.Companion.takePhoto
+import com.chat.picker.api.MediaSelector.Companion.takeVideo
+import com.chat.picker.api.MediaSelector.Companion.with
 import com.chat.picker.camera.CameraHelper
 import com.chat.picker.compress.IImageCompressor
 import com.chat.picker.compress.IVideoCompressor
@@ -501,9 +507,9 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
 
     private fun shouldUseSystemPhotoPicker(): Boolean =
         !cfg.needsImageProcessing &&
-            cfg.useSystemPhotoPicker &&
-            cfg.filter.type != MediaType.AUDIO &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                cfg.useSystemPhotoPicker &&
+                cfg.filter.type != MediaType.AUDIO &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
 
     private fun systemFilePickerMimeTypes(): Array<String> {
         if (cfg.filter.mimeTypes.isNotEmpty()) return cfg.filter.mimeTypes.toTypedArray()
