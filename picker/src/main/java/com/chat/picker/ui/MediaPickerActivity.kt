@@ -609,8 +609,6 @@ class MediaPickerActivity : AppCompatActivity() {
     }
 
     private fun finishStream() {
-        Selection.all.sortByDescending { it.dateAddedSec }
-        submitMediaList(scrollToTop = false)
         dismissLoading()
         hasMore = false
         isLoadingPage = false

@@ -34,7 +34,7 @@ class SelectionConfig {
      * 默认 false：本地 MediaStore 通常 < 100ms 就返回，弹窗会一闪而过反而扰人；
      * 仅当列表项数量极大或自定义查询慢时打开。
      */
-    var showFirstLoading: Boolean = false
+    var showFirstLoading: Boolean = true
 
     /**
      * 压缩 loading 显示期间，按返回键/点击取消是否取消后台压缩并退出 picker。

@@ -61,7 +61,7 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btn_pick_image).setOnClickListener {
             PickIt.with(this)
-                .type(MediaType.IMAGE, realtimeFetch = true)
+                .type(MediaType.IMAGE,true)
                 .maxCount(9)
                 .grid(true)
                 .spanCount(4)

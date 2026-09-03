@@ -58,17 +58,11 @@ class MediaSelector private constructor(private val activity: ComponentActivity)
             .realtimeFetch(cfg.realtimeFetch)
             .apply {
                 val current = cfg.filter
-                if (current.mimeTypes.isNotEmpty()) {
-                    addMimeType(*current.mimeTypes.toTypedArray())
-                }
                 if (current.minSizeBytes > 0) {
                     minSizeBytes(current.minSizeBytes)
                 }
                 if (current.maxDurationMs != Long.MAX_VALUE) {
                     maxDurationMs(current.maxDurationMs)
-                }
-                if (current.extraSelection != null) {
-                    extraSelection(current.extraSelection, *(current.extraArgs ?: emptyArray()))
                 }
             }
             .build()

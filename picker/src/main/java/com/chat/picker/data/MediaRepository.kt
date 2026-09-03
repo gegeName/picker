@@ -101,17 +101,18 @@ object MediaRepository {
             minSizeBytes = filter.minSizeBytes,
             maxDurationMs = filter.maxDurationMs,
         )
-        val cached = cachedCandidates(scanKey)
+        val cached = if (!filter.realtimeFetch) cachedCandidates(scanKey) else null
         if (cached != null) {
             cached.chunked(STREAM_BATCH_SIZE).forEach { batch ->
                 onPage(batch.map { it.toEntity() })
             }
             return
         }
-        val all = scanCandidates(context, filter) { batch ->
+        val all = scanCandidates(context, filter)
+        fileScanCache = FileScanCache(scanKey, SystemClock.uptimeMillis(), all)
+        all.chunked(STREAM_BATCH_SIZE).forEach { batch ->
             onPage(batch.map { it.toEntity() })
         }
-        fileScanCache = FileScanCache(scanKey, SystemClock.uptimeMillis(), all)
     }
 
     fun invalidateFileScanCache() {
@@ -243,7 +244,27 @@ object MediaRepository {
         val realtimeItems = scanRealtimePublicMedia(context, filter, existingPaths, existingUris)
         if (realtimeItems.isEmpty()) return baseList
 
-        val merged = (realtimeItems + baseList).sortedByDescending { it.dateAddedSec }
+        val sortedRealtimeItems = realtimeItems.sortedByDescending { it.dateAddedSec }
+        val merged = mutableListOf<MediaEntity>()
+        var i = 0
+        var j = 0
+        while (i < sortedRealtimeItems.size && j < baseList.size) {
+            if (sortedRealtimeItems[i].dateAddedSec >= baseList[j].dateAddedSec) {
+                merged.add(sortedRealtimeItems[i])
+                i++
+            } else {
+                merged.add(baseList[j])
+                j++
+            }
+        }
+        while (i < sortedRealtimeItems.size) {
+            merged.add(sortedRealtimeItems[i])
+            i++
+        }
+        while (j < baseList.size) {
+            merged.add(baseList[j])
+            j++
+        }
         return if (limit == Int.MAX_VALUE) merged else merged.take(limit)
     }
 
@@ -276,7 +297,9 @@ object MediaRepository {
             if (!file.isFile || !file.canRead() || file.name.startsWith(".")) return
             val abs = file.absolutePath
             val canonical = runCatching { file.canonicalPath }.getOrDefault(abs)
-            if (!visited.add(abs) && !visited.add(canonical)) return
+            val absIsNew = visited.add(abs)
+            val canonicalIsNew = visited.add(canonical)
+            if (!absIsNew && !canonicalIsNew) return
             if (existingPaths.contains(abs) || existingPaths.contains(canonical)) return
             val fileUri = android.net.Uri.fromFile(file).toString()
             if (existingUris.contains(fileUri)) return
