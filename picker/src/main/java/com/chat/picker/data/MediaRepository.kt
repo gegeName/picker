@@ -169,7 +169,7 @@ object MediaRepository {
                 -1
             }
             val motionIdx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                c.optionalIndex("is_motion_photo")
+                runCatching { c.getColumnIndex("is_motion_photo") }.getOrDefault(-1)
             } else {
                 -1
             }
@@ -674,9 +674,9 @@ object MediaRepository {
         offset: Int,
         limit: Int,
     ): Cursor? {
-        val baseSort = "COALESCE(CASE WHEN ${MediaStore.MediaColumns.DATE_MODIFIED} > 0 THEN GREATEST(${MediaStore.MediaColumns.DATE_ADDED}, ${MediaStore.MediaColumns.DATE_MODIFIED}) ELSE ${MediaStore.MediaColumns.DATE_ADDED} END, ${MediaStore.MediaColumns.DATE_ADDED}) DESC, ${MediaStore.MediaColumns._ID} DESC"
+        val baseSort = "${MediaStore.MediaColumns.DATE_MODIFIED} DESC, ${MediaStore.MediaColumns.DATE_ADDED} DESC, ${MediaStore.MediaColumns._ID} DESC"
         val paged = limit != Int.MAX_VALUE
-        return if (paged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        return if (paged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val queryArgs = Bundle().apply {
                 putString(
                     ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
@@ -684,9 +684,23 @@ object MediaRepository {
                 )
                 putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
                 putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
-                }
+                putInt(MediaStore.QUERY_ARG_MATCH_PENDING, MediaStore.MATCH_INCLUDE)
+                selection?.let { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, it) }
+                args?.let { putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, it) }
+            }
+            cr.query(uri, projection, queryArgs, null)
+        } else if (paged && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val queryArgs = Bundle().apply {
+                putStringArray(
+                    ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                    arrayOf(MediaStore.MediaColumns.DATE_MODIFIED, MediaStore.MediaColumns.DATE_ADDED),
+                )
+                putInt(
+                    ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                    ContentResolver.QUERY_SORT_DIRECTION_DESCENDING,
+                )
+                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
+                putInt(ContentResolver.QUERY_ARG_LIMIT, limit)
                 selection?.let { putString(ContentResolver.QUERY_ARG_SQL_SELECTION, it) }
                 args?.let { putStringArray(ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, it) }
             }
@@ -724,9 +738,6 @@ object MediaRepository {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             base += MediaStore.MediaColumns.RELATIVE_PATH
-            if (type == MediaType.IMAGE || type == MediaType.IMAGE_VIDEO || type == MediaType.ALL) {
-                base += "is_motion_photo"
-            }
         }
         return base.toTypedArray()
     }

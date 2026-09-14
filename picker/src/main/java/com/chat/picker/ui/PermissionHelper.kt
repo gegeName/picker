@@ -47,7 +47,8 @@ internal object PermissionHelper {
     }
 
     fun hasDeclaredPermissions(ctx: Context, perms: Array<String>): Boolean {
-        val missing = missingManifestPermissions(ctx, perms)
+        val requiredToDeclare = perms.filterNot { it == READ_MEDIA_VISUAL_USER_SELECTED }
+        val missing = missingManifestPermissions(ctx, requiredToDeclare.toTypedArray())
         if (missing.isNotEmpty()) {
             PickerLog.w(
                 buildString {
