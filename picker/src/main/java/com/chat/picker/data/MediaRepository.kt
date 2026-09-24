@@ -733,7 +733,7 @@ object MediaRepository {
             base += MediaStore.MediaColumns.HEIGHT
         }
 
-        if (type == MediaType.AUDIO) {
+        if (type == MediaType.AUDIO || type == MediaType.ALL) {
             base += MediaStore.Audio.AudioColumns.ALBUM_ID
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

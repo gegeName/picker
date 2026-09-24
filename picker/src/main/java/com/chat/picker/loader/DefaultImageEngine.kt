@@ -38,12 +38,8 @@ internal object DefaultImageEngine : IImageEngine {
             }
             item.isAudio -> {
                 showAudioDefault(view)
-                item.albumArtUri?.let {
-                    view.background = null
-                    view.scaleType = ImageView.ScaleType.CENTER_CROP
-                    ImageLoader.load(view, it, isVideo = false, targetWidth = 360, targetHeight = 360) {
-                        showAudioDefault(view)
-                    }
+                ImageLoader.loadAudioCover(view, item, 360, 360) {
+                    showAudioDefault(view)
                 }
             }
             else -> {

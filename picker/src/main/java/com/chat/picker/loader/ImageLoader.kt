@@ -5,10 +5,13 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.LruCache
+import android.util.Size
 import android.widget.ImageView
+import com.chat.picker.model.MediaEntity
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -105,6 +108,100 @@ object ImageLoader {
         val bmp = decodeImage(ctx, uri, w, h) ?: return null
         ThumbDiskCache.putAsync(ctx, key, bmp)
         return bmp
+    }
+
+    fun loadAudioCover(
+        view: ImageView,
+        item: MediaEntity,
+        targetWidth: Int = 360,
+        targetHeight: Int = 360,
+        onFailure: (() -> Unit)? = null,
+    ) {
+        val key = "audio_cover_${item.id}@${targetWidth}x$targetHeight"
+        val token = seq.incrementAndGet()
+        view.setTag(tagKey, token)
+
+        cache.get(key)?.let {
+            view.background = null
+            view.scaleType = ImageView.ScaleType.CENTER_CROP
+            view.setImageBitmap(it)
+            return
+        }
+
+        val ctx = view.context.applicationContext
+        pool.execute {
+            val bmp = try {
+                loadAudioCoverThumb(ctx, item, key, targetWidth, targetHeight)
+            } catch (oom: OutOfMemoryError) {
+                trimOnOom()
+                null
+            } catch (_: Throwable) {
+                null
+            }
+            if (bmp == null) {
+                main.post {
+                    if (view.getTag(tagKey) == token) onFailure?.invoke()
+                }
+                return@execute
+            }
+            cache.put(key, bmp)
+            main.post {
+                if (view.getTag(tagKey) == token) {
+                    view.background = null
+                    view.scaleType = ImageView.ScaleType.CENTER_CROP
+                    view.setImageBitmap(bmp)
+                }
+            }
+        }
+    }
+
+    private fun loadAudioCoverThumb(
+        ctx: Context,
+        item: MediaEntity,
+        key: String,
+        w: Int,
+        h: Int,
+    ): Bitmap? {
+        ThumbDiskCache.get(ctx, key)?.let { return it }
+        val bmp = decodeAudioArt(ctx, item, w, h) ?: return null
+        ThumbDiskCache.putAsync(ctx, key, bmp)
+        return bmp
+    }
+
+    private fun decodeAudioArt(
+        ctx: Context,
+        item: MediaEntity,
+        w: Int,
+        h: Int,
+    ): Bitmap? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching {
+                return ctx.contentResolver.loadThumbnail(item.uri, Size(w, h), null)
+            }
+        }
+        item.albumArtUri?.let { albumUri ->
+            runCatching {
+                val bmp = decodeImage(ctx, albumUri, w, h)
+                if (bmp != null) return bmp
+            }
+        }
+        return runCatching {
+            val r = MediaMetadataRetriever()
+            try {
+                r.setDataSource(ctx, item.uri)
+                val bytes = r.embeddedPicture ?: return@runCatching null
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                val sample = calcSample(bounds.outWidth, bounds.outHeight, w, h)
+                val opts = BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            } finally {
+                runCatching { r.release() }
+            }
+        }.getOrNull()
     }
 
     private fun decodeImage(ctx: Context, uri: Uri, w: Int, h: Int): Bitmap? {
