@@ -906,12 +906,14 @@ class MediaPickerActivity : AppCompatActivity() {
 
         if (PermissionHelper.anyUsable(this, config.filter.type)) {
             updatePartialBarVisibility()
-            if (mediaChangedWhilePaused) {
-                mediaChangedWhilePaused = false
-                refreshDataSilent()
-            }
+            mediaChangedWhilePaused = false
+            refreshDataSilent()
         } else {
             updatePartialBarVisibility()
+            emptyView.visibility = View.VISIBLE
+            (emptyView as TextView).text = getString(R.string.picker_no_media_permission)
+            Selection.all.clear()
+            submitMediaList()
         }
     }
 
