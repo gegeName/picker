@@ -4,9 +4,14 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.ComponentCallbacks2
 import android.content.Intent
+import android.database.ContentObserver
 import android.graphics.Color
 import android.graphics.Rect
+import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -289,6 +294,8 @@ class MediaPickerActivity : AppCompatActivity() {
             }
         }
     }
+
+    private var isFirstResume = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -822,8 +829,102 @@ class MediaPickerActivity : AppCompatActivity() {
         loadingDialog?.takeIf { it.isShowing }?.dismiss()
     }
 
+    private var mediaObserver: ContentObserver? = null
+    private var mediaChangedWhilePaused = false
+    private var isResumedState = false
+
+    private fun registerMediaObserver() {
+        if (mediaObserver != null) return
+        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                if (isResumedState) {
+                    refreshDataSilent()
+                } else {
+                    mediaChangedWhilePaused = true
+                }
+            }
+        }
+        mediaObserver = observer
+        runCatching {
+            contentResolver.registerContentObserver(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                true,
+                observer,
+            )
+            contentResolver.registerContentObserver(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                true,
+                observer,
+            )
+        }
+    }
+
+    private fun unregisterMediaObserver() {
+        mediaObserver?.let {
+            runCatching { contentResolver.unregisterContentObserver(it) }
+        }
+        mediaObserver = null
+    }
+
+    private fun refreshDataSilent() {
+        if (currentFolder != null) return
+        if (!PermissionHelper.anyUsable(this, config.filter.type)) return
+        val loadToken = ++dataLoadVersion
+        MediaSelector.invalidateCache()
+        val filterToUse = buildFilterForQuery()
+        MediaRepository.queryAsync(
+            applicationContext, filterToUse,
+            offset = 0, limit = pageSize,
+        ) { list ->
+            runOnUiThread {
+                if (loadToken != dataLoadVersion || currentFolder != null || isFinishing || isDestroyed) return@runOnUiThread
+                loadedKeys.clear()
+                currentOffset = 0
+                hasMore = list.size >= pageSize
+                Selection.all.clear()
+                list.forEach { item ->
+                    loadedKeys.add(keyOf(item))
+                    Selection.all.add(item)
+                }
+                currentOffset = list.size
+                submitMediaList(scrollToTop = false)
+                emptyView.visibility = if (Selection.all.isEmpty()) View.VISIBLE else View.GONE
+                updateConfirmButton()
+                loadFolders()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        registerMediaObserver()
+        isResumedState = true
+
+        if (isFirstResume) {
+            isFirstResume = false
+            return
+        }
+
+        if (PermissionHelper.anyUsable(this, config.filter.type)) {
+            updatePartialBarVisibility()
+            if (mediaChangedWhilePaused) {
+                mediaChangedWhilePaused = false
+                refreshDataSilent()
+            }
+        } else {
+            updatePartialBarVisibility()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isResumedState = false
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        unregisterMediaObserver()
         folderPopup?.dismiss()
         folderPopup = null
         MediaPreviewTransitionBridge.unregister(activePreviewId)
