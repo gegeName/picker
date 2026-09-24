@@ -87,7 +87,9 @@ class MediaPickerActivity : AppCompatActivity() {
     private val triggerCooldownMs = 200L
     private val loadedKeys = HashSet<Long>()
     private val prefetchThreshold = 10
-
+    private var mediaObserver: ContentObserver? = null
+    private var mediaChangedWhilePaused = false
+    private var isResumedState = false
     private val effectiveMaxCount: Int
         get() = if (config.enableMultiSelect) config.maxCount else 1
 
@@ -828,10 +830,6 @@ class MediaPickerActivity : AppCompatActivity() {
     private fun dismissLoading() {
         loadingDialog?.takeIf { it.isShowing }?.dismiss()
     }
-
-    private var mediaObserver: ContentObserver? = null
-    private var mediaChangedWhilePaused = false
-    private var isResumedState = false
 
     private fun registerMediaObserver() {
         if (mediaObserver != null) return
